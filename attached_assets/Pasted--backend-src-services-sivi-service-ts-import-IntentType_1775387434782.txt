@@ -1,0 +1,161 @@
+// backend/src/services/sivi.service.ts
+
+import { IntentType } from "./ajit.service";
+import { EmotionType } from "./manu.service";
+
+export type PathOption = {
+  action: string;
+  risk: "low" | "medium" | "high";
+  stability: "low" | "medium" | "high";
+  outcome: "positive" | "negative" | "mixed";
+};
+
+export type SimulationResult = {
+  bestPath: PathOption;
+  alternatives: PathOption[];
+};
+
+// Risk scoring based on emotion
+function getEmotionRisk(emotion: EmotionType): number {
+  switch (emotion) {
+    case "angry":
+      return 3;
+    case "anxious":
+      return 2;
+    case "stressed":
+      return 2;
+    case "sad":
+      return 2;
+    case "confused":
+      return 2;
+    case "calm":
+      return 1;
+    default:
+      return 2;
+  }
+}
+
+// Stability scoring based on intent
+function getIntentStability(intent: IntentType): number {
+  switch (intent) {
+    case "decision":
+      return 2;
+    case "relationship":
+      return 2;
+    case "conflict":
+      return 1;
+    case "career":
+      return 3;
+    case "health":
+      return 3;
+    case "unclear":
+      return 1;
+    default:
+      return 1;
+  }
+}
+
+// Convert numeric score to label
+function toLevel(score: number): "low" | "medium" | "high" {
+  if (score >= 3) return "high";
+  if (score === 2) return "medium";
+  return "low";
+}
+
+// Outcome logic
+function evaluateOutcome(
+  riskScore: number,
+  stabilityScore: number
+): "positive" | "negative" | "mixed" {
+  if (riskScore <= 1 && stabilityScore >= 2) return "positive";
+  if (riskScore >= 3 && stabilityScore <= 1) return "negative";
+  return "mixed";
+}
+
+// Generate action paths based on intent
+function generateActions(intent: IntentType): string[] {
+  switch (intent) {
+    case "relationship":
+      return [
+        "Communicate calmly and clarify misunderstandings",
+        "Take temporary space and reflect",
+        "End the relationship respectfully",
+      ];
+    case "conflict":
+      return [
+        "Address the issue directly with facts",
+        "Ignore temporarily and observe",
+        "Escalate the issue to authority",
+      ];
+    case "decision":
+      return [
+        "Gather more information before deciding",
+        "Take a calculated risk and act",
+        "Delay the decision",
+      ];
+    case "career":
+      return [
+        "Upskill and prepare before next move",
+        "Switch immediately",
+        "Stay and stabilize current position",
+      ];
+    case "health":
+      return [
+        "Consult a professional",
+        "Self-manage with routine changes",
+        "Ignore symptoms temporarily",
+      ];
+    default:
+      return [
+        "Wait and observe",
+        "Seek clarity",
+        "Take minimal action",
+      ];
+  }
+}
+
+// MAIN FUNCTION
+export function simulatePaths(
+  intent: IntentType,
+  emotion: EmotionType
+): SimulationResult {
+  const actions = generateActions(intent);
+
+  const emotionRisk = getEmotionRisk(emotion);
+  const intentStability = getIntentStability(intent);
+
+  const results: PathOption[] = actions.map((action, index) => {
+    // Slight variation per action
+    const variation = index; // deterministic variation
+
+    const riskScore = Math.min(3, emotionRisk + variation - 1);
+    const stabilityScore = Math.max(1, intentStability - variation + 1);
+
+    return {
+      action,
+      risk: toLevel(riskScore),
+      stability: toLevel(stabilityScore),
+      outcome: evaluateOutcome(riskScore, stabilityScore),
+    };
+  });
+
+  // Select best path: lowest risk + highest stability
+  const bestPath = results.reduce((best, current) => {
+    const scoreCurrent =
+      (current.stability === "high" ? 3 : current.stability === "medium" ? 2 : 1) -
+      (current.risk === "high" ? 3 : current.risk === "medium" ? 2 : 1);
+
+    const scoreBest =
+      (best.stability === "high" ? 3 : best.stability === "medium" ? 2 : 1) -
+      (best.risk === "high" ? 3 : best.risk === "medium" ? 2 : 1);
+
+    return scoreCurrent > scoreBest ? current : best;
+  });
+
+  const alternatives = results.filter((r) => r !== bestPath);
+
+  return {
+    bestPath,
+    alternatives,
+  };
+}
