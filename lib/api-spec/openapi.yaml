@@ -1,0 +1,611 @@
+openapi: 3.1.0
+info:
+  title: Api
+  version: 0.1.0
+  description: Situation X - AI + Astrology Situation Analysis API
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+  - name: analysis
+  - name: feedback
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  /analysis/analyze:
+    post:
+      operationId: analyzeSituation
+      tags: [analysis]
+      summary: Analyze a situation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnalyzeRequest"
+      responses:
+        "200":
+          description: Analysis result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnalysisResult"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /analysis/history:
+    get:
+      operationId: getAnalysisHistory
+      tags: [analysis]
+      summary: Get analysis history
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        "200":
+          description: History list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnalysisHistoryResponse"
+
+  /analysis/history/{id}:
+    get:
+      operationId: getAnalysisById
+      tags: [analysis]
+      summary: Get analysis by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Analysis detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnalysisRecord"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteAnalysis
+      tags: [analysis]
+      summary: Delete an analysis
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /feedback:
+    post:
+      operationId: createFeedback
+      tags: [feedback]
+      summary: Submit feedback for an analysis
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateFeedbackRequest"
+      responses:
+        "200":
+          description: Feedback saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeedbackItem"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    get:
+      operationId: getFeedbackList
+      tags: [feedback]
+      summary: Get all feedback (optionally filtered by analysis)
+      parameters:
+        - name: analysisId
+          in: query
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        "200":
+          description: Feedback list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeedbackListResponse"
+
+  /feedback/{id}:
+    delete:
+      operationId: deleteFeedback
+      tags: [feedback]
+      summary: Delete feedback
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteResponse"
+
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+
+    AnalyzeRequest:
+      type: object
+      properties:
+        situation:
+          type: string
+          description: The situation to analyze (min 10 characters)
+        birthDate:
+          type: string
+          description: Optional birth date YYYY-MM-DD for Vedic chart
+        birthTime:
+          type: string
+          description: Optional birth time HH:MM
+        birthPlace:
+          type: string
+          description: Optional birth place
+        latitude:
+          type: number
+          description: Optional latitude for birth place
+        longitude:
+          type: number
+          description: Optional longitude for birth place
+      required:
+        - situation
+
+    IntentResult:
+      type: object
+      properties:
+        intent:
+          type: string
+          enum: [decision, relationship, conflict, career, health, unclear]
+        confidence:
+          type: string
+          enum: [low, medium, high]
+        score:
+          type: number
+      required:
+        - intent
+        - confidence
+        - score
+
+    EmotionResult:
+      type: object
+      properties:
+        emotion:
+          type: string
+          enum: [calm, stressed, anxious, angry, sad, confused]
+        intensity:
+          type: string
+          enum: [low, medium, high]
+        score:
+          type: number
+      required:
+        - emotion
+        - intensity
+        - score
+
+    PathOption:
+      type: object
+      properties:
+        action:
+          type: string
+        risk:
+          type: string
+          enum: [low, medium, high]
+        stability:
+          type: string
+          enum: [low, medium, high]
+        outcome:
+          type: string
+          enum: [positive, negative, mixed]
+      required:
+        - action
+        - risk
+        - stability
+        - outcome
+
+    SimulationResult:
+      type: object
+      properties:
+        bestPath:
+          $ref: "#/components/schemas/PathOption"
+        alternatives:
+          type: array
+          items:
+            $ref: "#/components/schemas/PathOption"
+      required:
+        - bestPath
+        - alternatives
+
+    FinalVerdict:
+      type: object
+      properties:
+        recommendedAction:
+          type: string
+        reasoning:
+          type: string
+        riskLevel:
+          type: string
+          enum: [low, medium, high]
+      required:
+        - recommendedAction
+        - reasoning
+        - riskLevel
+
+    PlanetPosition:
+      type: object
+      properties:
+        name:
+          type: string
+        longitude:
+          type: number
+        sign:
+          type: string
+        signIndex:
+          type: integer
+        degree:
+          type: number
+        isRetrograde:
+          type: boolean
+        navamsaSign:
+          type: string
+        dasamsaSign:
+          type: string
+      required:
+        - name
+        - longitude
+        - sign
+        - signIndex
+        - degree
+        - isRetrograde
+        - navamsaSign
+        - dasamsaSign
+
+    DashaLevel:
+      type: object
+      properties:
+        planet:
+          type: string
+        startDate:
+          type: string
+        endDate:
+          type: string
+        years:
+          type: number
+      required:
+        - planet
+        - startDate
+        - endDate
+        - years
+
+    DashaTree:
+      type: object
+      properties:
+        mahadasha:
+          $ref: "#/components/schemas/DashaLevel"
+        antardasha:
+          $ref: "#/components/schemas/DashaLevel"
+        pratyantardasha:
+          $ref: "#/components/schemas/DashaLevel"
+        sookshmadasha:
+          $ref: "#/components/schemas/DashaLevel"
+      required:
+        - mahadasha
+
+    VedicChart:
+      type: object
+      properties:
+        ascendant:
+          type: string
+        ascendantDegree:
+          type: number
+        planets:
+          type: array
+          items:
+            $ref: "#/components/schemas/PlanetPosition"
+        currentDasha:
+          $ref: "#/components/schemas/DashaTree"
+        ayanamsa:
+          type: number
+        chartType:
+          type: string
+          description: "D1, D9, or D10"
+      required:
+        - ascendant
+        - ascendantDegree
+        - planets
+        - ayanamsa
+        - chartType
+
+    AstroInfluence:
+      type: object
+      properties:
+        dominantPlanet:
+          type: string
+        stability:
+          type: string
+          enum: [low, medium, high]
+        risk:
+          type: string
+          enum: [low, medium, high]
+        signal:
+          type: string
+          enum: [favorable, challenging, neutral]
+      required:
+        - dominantPlanet
+        - stability
+        - risk
+        - signal
+
+    AstroResult:
+      type: object
+      properties:
+        influence:
+          $ref: "#/components/schemas/AstroInfluence"
+        interpretation:
+          type: string
+        vedicD1:
+          $ref: "#/components/schemas/VedicChart"
+        vedicD9:
+          $ref: "#/components/schemas/VedicChart"
+        vedicD10:
+          $ref: "#/components/schemas/VedicChart"
+      required:
+        - influence
+        - interpretation
+
+    AnalysisResult:
+      type: object
+      properties:
+        id:
+          type: integer
+        situation:
+          type: string
+        intent:
+          $ref: "#/components/schemas/IntentResult"
+        emotion:
+          $ref: "#/components/schemas/EmotionResult"
+        simulation:
+          $ref: "#/components/schemas/SimulationResult"
+        finalVerdict:
+          $ref: "#/components/schemas/FinalVerdict"
+        astro:
+          $ref: "#/components/schemas/AstroResult"
+        overallScore:
+          type: number
+        summary:
+          type: string
+        createdAt:
+          type: string
+      required:
+        - id
+        - situation
+        - intent
+        - emotion
+        - simulation
+        - finalVerdict
+        - astro
+        - overallScore
+        - summary
+        - createdAt
+
+    AnalysisRecord:
+      type: object
+      properties:
+        id:
+          type: integer
+        situation:
+          type: string
+        intent:
+          type: string
+        emotion:
+          type: string
+        overallScore:
+          type: number
+        riskLevel:
+          type: string
+        summary:
+          type: string
+        fullAnalysis:
+          $ref: "#/components/schemas/AnalysisResult"
+        createdAt:
+          type: string
+      required:
+        - id
+        - situation
+        - intent
+        - emotion
+        - overallScore
+        - riskLevel
+        - summary
+        - createdAt
+
+    AnalysisHistoryResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/AnalysisRecord"
+        total:
+          type: integer
+        limit:
+          type: integer
+        offset:
+          type: integer
+      required:
+        - items
+        - total
+        - limit
+        - offset
+
+    DeleteResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+      required:
+        - success
+        - message
+
+    CreateFeedbackRequest:
+      type: object
+      properties:
+        analysisId:
+          type: integer
+          description: ID of the analysis being reviewed
+        rating:
+          type: integer
+          description: 1-5 star rating
+          minimum: 1
+          maximum: 5
+        accuracy:
+          type: integer
+          description: How accurate was the analysis? 1-5
+          minimum: 1
+          maximum: 5
+        comment:
+          type: string
+          description: Free text feedback
+        helpful:
+          type: boolean
+          description: Was this analysis helpful?
+      required:
+        - analysisId
+        - rating
+
+    FeedbackItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        analysisId:
+          type: integer
+        situationSnippet:
+          type: string
+        rating:
+          type: integer
+        accuracy:
+          type: integer
+        comment:
+          type: string
+        helpful:
+          type: boolean
+        createdAt:
+          type: string
+      required:
+        - id
+        - analysisId
+        - rating
+        - createdAt
+
+    FeedbackListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/FeedbackItem"
+        total:
+          type: integer
+        limit:
+          type: integer
+        offset:
+          type: integer
+      required:
+        - items
+        - total
+        - limit
+        - offset
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+      required:
+        - error
+        - message
