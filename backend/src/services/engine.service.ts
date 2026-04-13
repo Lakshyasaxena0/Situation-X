@@ -1,0 +1,100 @@
+// backend/src/services/engine.service.ts
+
+import { analyzeIntent, IntentResult } from "./ajit.service";
+import { analyzeEmotion, EmotionResult } from "./manu.service";
+import { simulatePaths, SimulationResult } from "./sivi.service";
+
+// FINAL OUTPUT TYPE
+export type EngineResponse = {
+  intent: IntentResult;
+  emotion: EmotionResult;
+  simulation: SimulationResult;
+  finalVerdict: {
+    recommendedAction: string;
+    reasoning: string;
+    riskLevel: "low" | "medium" | "high";
+  };
+};
+
+// ETHICAL FILTER (strict but non-blocking)
+function applyEthicalFilter(input: string): string {
+  const unsafePatterns = [
+    "revenge",
+    "harm",
+    "manipulate",
+    "control someone",
+    "blackmail",
+  ];
+
+  let sanitized = input.toLowerCase();
+
+  for (const pattern of unsafePatterns) {
+    if (sanitized.includes(pattern)) {
+      sanitized = sanitized.replace(pattern, "");
+    }
+  }
+
+  return sanitized.trim();
+}
+
+// FINAL DECISION LOGIC
+function deriveFinalVerdict(
+  simulation: SimulationResult,
+  emotion: EmotionResult
+): EngineResponse["finalVerdict"] {
+  const best = simulation.bestPath;
+
+  let reasoning = "";
+
+  if (emotion.emotion === "angry" || emotion.emotion === "anxious") {
+    reasoning =
+      "Your current emotional state suggests avoiding impulsive actions. A stable and low-risk approach is recommended.";
+  } else if (emotion.emotion === "confused") {
+    reasoning =
+      "Clarity is currently low. A balanced and stable path will help avoid unnecessary mistakes.";
+  } else {
+    reasoning =
+      "Your emotional state is relatively stable. You can proceed with a calculated and structured decision.";
+  }
+
+  return {
+    recommendedAction: best.action,
+    reasoning,
+    riskLevel: best.risk,
+  };
+}
+
+// MAIN ENGINE FUNCTION
+export function runEngine(input: string): EngineResponse {
+  if (!input || input.length < 10) {
+    throw new Error("Input must be at least 10 characters long.");
+  }
+
+  // Step 1: Ethical filtering
+  const cleanInput = applyEthicalFilter(input);
+
+  // Step 2: Intent Analysis (AJIT)
+  const intentResult = analyzeIntent(cleanInput);
+
+  // Step 3: Emotion Analysis (MANU)
+  const emotionResult = analyzeEmotion(cleanInput);
+
+  // Step 4: Path Simulation (SIVI)
+  const simulationResult = simulatePaths(
+    intentResult.intent,
+    emotionResult.emotion
+  );
+
+  // Step 5: Final Verdict
+  const finalVerdict = deriveFinalVerdict(
+    simulationResult,
+    emotionResult
+  );
+
+  return {
+    intent: intentResult,
+    emotion: emotionResult,
+    simulation: simulationResult,
+    finalVerdict,
+  };
+}
