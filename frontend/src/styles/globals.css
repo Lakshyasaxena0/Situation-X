@@ -1,0 +1,46 @@
+/* frontend/src/styles/globals.css */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* -----------------------------
+   COLOR VARIABLES
+----------------------------- */
+
+:root {
+  --color-primary: #1f2937; /* deep slate */
+  --color-accent: #f97316; /* orange */
+  --color-danger: #ef4444; /* red */
+  --color-success: #22c55e; /* green */
+  --color-bg: #f9fafb; /* light gray */
+}
+
+/* -----------------------------
+   GLOBAL STYLES
+----------------------------- */
+
+body {
+  background-color: var(--color-bg);
+  color: var(--color-primary);
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+/* Smooth transitions */
+* {
+  transition: all 0.2s ease-in-out;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 8px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}
