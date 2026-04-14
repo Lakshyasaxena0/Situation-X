@@ -1,0 +1,22 @@
+# render.yaml
+services:
+  - type: web
+    name: situation-x-backend
+    env: node
+    plan: free
+    buildCommand: pnpm --filter backend run build
+    startCommand: pnpm --filter backend run start
+    envVars:
+      - key: PORT
+        value: 4000
+      - key: NODE_ENV
+        value: production
+      - key: JWT_SECRET
+        value: your_jwt_secret_here
+      - key: SUPABASE_URL
+        value: your_supabase_project_url
+      - key: SUPABASE_SERVICE_KEY
+        value: your_supabase_service_role_key
+      - key: ALLOWED_ORIGINS
+        value: https://your-netlify-app.netlify.app
+    healthCheckPath: /api/healthz
