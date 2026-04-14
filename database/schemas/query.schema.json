@@ -1,0 +1,58 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Analysis",
+  "type": "object",
+  "required": [
+    "id",
+    "user_id",
+    "input",
+    "intent",
+    "emotion",
+    "risk_level",
+    "recommended_action",
+    "reasoning",
+    "simulation",
+    "created_at"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "user_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "input": {
+      "type": "string",
+      "minLength": 10,
+      "maxLength": 1000
+    },
+    "intent": {
+      "type": "string"
+    },
+    "emotion": {
+      "type": "string"
+    },
+    "risk_level": {
+      "type": "string",
+      "enum": ["low", "medium", "high"]
+    },
+    "recommended_action": {
+      "type": "string"
+    },
+    "reasoning": {
+      "type": "string"
+    },
+    "simulation": {
+      "type": "object"
+    },
+    "astro": {
+      "type": ["object", "null"]
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}
