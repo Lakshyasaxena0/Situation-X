@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "nodemon --watch src --exec tsx src/server.ts",
     "build": "tsc",
-    "start": "node dist/server.js",
+    "start": "node /opt/render/project/src/backend/dist/server.js",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
