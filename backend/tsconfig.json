@@ -4,7 +4,6 @@
     "module": "CommonJS",
     "lib": ["ES2022"],
     "outDir": "dist",
-    "rootDir": "src",
     "strict": true,
     "noImplicitAny": true,
     "strictNullChecks": true,
@@ -15,11 +14,11 @@
     "skipLibCheck": true,
     "resolveJsonModule": true,
     "moduleResolution": "Node",
-    "baseUrl": ".",
-    "paths": {
-      "@shared/*": ["../../shared/*"]
-    }
+    "baseUrl": "../.."
   },
-  "include": ["src"],
+  "include": [
+    "src/**/*",
+    "../../shared/**/*"
+  ],
   "exclude": ["node_modules", "dist"]
 }
