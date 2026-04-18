@@ -1,6 +1,6 @@
 import express, { Request, Response, NextFunction } from "express";
 import cors from "cors";
-import rateLimit from "express-rate-limit";
+import { rateLimit } from "express-rate-limit";
 import dotenv from "dotenv";
 import { env } from "./config/env";
 import { testConnection } from "./config/db";
@@ -14,9 +14,6 @@ dotenv.config();
 
 const app = express();
 
-// -----------------------------
-// CORS CONFIG (env.ALLOWED_ORIGINS is already string[])
-// -----------------------------
 app.use(
   cors({
     origin: (origin, callback) => {
@@ -30,55 +27,31 @@ app.use(
   })
 );
 
-// -----------------------------
-// BODY PARSER
-// -----------------------------
 app.use(express.json({ limit: "10kb" }));
 
-// -----------------------------
-// RATE LIMITING
-// -----------------------------
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 60,
-  standardHeaders: true,
+  limit: 60,
+  standardHeaders: "draft-7",
   legacyHeaders: false,
 });
-app.use(limiter);
 
-// -----------------------------
-// ROUTES
-// -----------------------------
+app.use(limiter as any);
+
 app.use("/api/analyze", analyzeRoutes);
 app.use("/api/profile", profileRoutes);
 app.use("/api/history", historyRoutes);
 app.use("/api/auth", authRoutes);
 
-// -----------------------------
-// HEALTH CHECK
-// -----------------------------
 app.get("/api/healthz", (_req: Request, res: Response) => {
-  res.status(200).json({
-    status: "ok",
-    timestamp: new Date().toISOString(),
-  });
+  res.status(200).json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
-// -----------------------------
-// GLOBAL ERROR HANDLER
-// -----------------------------
-app.use(
-  (err: any, _req: Request, res: Response, _next: NextFunction) => {
-    logger.error("Unhandled error", { error: err.message });
-    res.status(500).json({
-      error: "Internal server error",
-    });
-  }
-);
+app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+  logger.error("Unhandled error", { error: err.message });
+  res.status(500).json({ error: "Internal server error" });
+});
 
-// -----------------------------
-// START SERVER
-// -----------------------------
 async function startServer() {
   try {
     await testConnection();
