@@ -1,9 +1,10 @@
-netlify.toml
 [build]
   command = "pnpm --filter frontend run build"
   publish = "frontend/.next"
+
 [build.environment]
   NEXT_PUBLIC_API_URL = "https://your-backend-url.onrender.com/api"
+
 [[redirects]]
   from = "/*"
   to = "/index.html"
