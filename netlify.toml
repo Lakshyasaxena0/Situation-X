@@ -1,5 +1,6 @@
 [build]
-  command = "pnpm --filter frontend run build"
+  # We add the install command with the 'no-frozen-lockfile' flag
+  command = "pnpm install --no-frozen-lockfile && pnpm --filter frontend run build"
   publish = "frontend/.next"
 
 [build.environment]
