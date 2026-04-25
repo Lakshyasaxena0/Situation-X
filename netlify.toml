@@ -1,10 +1,10 @@
 [build]
-  # We add the install command with the 'no-frozen-lockfile' flag
-  command = "pnpm install --no-frozen-lockfile && pnpm --filter frontend run build"
+  command = "pnpm install --no-frozen-lockfile && cd frontend && pnpm run build"
   publish = "frontend/.next"
 
 [build.environment]
-  NEXT_PUBLIC_API_URL = "https://your-backend-url.onrender.com/api"
+  NEXT_PUBLIC_API_URL = "https://situation-x.onrender.com/api"
+  NODE_VERSION = "22"
 
 [[redirects]]
   from = "/*"
