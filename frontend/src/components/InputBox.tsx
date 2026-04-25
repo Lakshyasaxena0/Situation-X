@@ -1,18 +1,18 @@
-// frontend/src/components/InputBox.tsx
 "use client";
 import { useState } from "react";
 import { validateInput } from "../utils/validators";
+
 type Props = {
   onSubmit: (input: string) => void;
   isLoading: boolean;
 };
+
 export default function InputBox({ onSubmit, isLoading }: Props) {
   const [input, setInput] = useState("");
   const [error, setError] = useState<string | null>(null);
+
   const maxLength = 1000;
-  // -----------------------------
-  // HANDLE SUBMIT
-  // -----------------------------
+
   const handleSubmit = () => {
     const validation = validateInput(input);
     if (!validation.valid) {
@@ -22,9 +22,7 @@ export default function InputBox({ onSubmit, isLoading }: Props) {
     setError(null);
     onSubmit(input.trim());
   };
-  // -----------------------------
-  // HANDLE CHANGE
-  // -----------------------------
+
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const value = e.target.value;
     if (value.length <= maxLength) {
@@ -32,28 +30,26 @@ export default function InputBox({ onSubmit, isLoading }: Props) {
       if (error) setError(null);
     }
   };
+
   const isDisabled = isLoading || input.trim().length < 10;
-  // -----------------------------
-  // UI
-  // -----------------------------
+
   return (
     <div className="w-full max-w-2xl mx-auto p-4">
       <div className="bg-white shadow-md rounded-2xl p-4 border border-gray-200">
-        {/* TEXTAREA */}
         <textarea
           value={input}
           onChange={handleChange}
           placeholder="Describe your situation in detail..."
           className="w-full h-40 p-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-orange-500 resize-none"
         />
-        {/* CHARACTER COUNT */}
+
         <div className="flex justify-between items-center mt-2 text-sm text-gray-500">
           <span>{input.length}/{maxLength}</span>
           {error && (
             <span className="text-red-500">{error}</span>
           )}
         </div>
-        {/* SUBMIT BUTTON */}
+
         <button
           onClick={handleSubmit}
           disabled={isDisabled}
