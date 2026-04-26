@@ -3,10 +3,8 @@
   publish = "frontend/.next"
 
 [build.environment]
-  NEXT_PUBLIC_API_URL = "https://situation-x.onrender.com/api"
+  NEXT_PUBLIC_API_URL = "https://your-backend-url.onrender.com/api"
   NODE_VERSION = "22"
 
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
