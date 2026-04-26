@@ -12,7 +12,6 @@ export default function HomePage() {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    // Small timeout ensures CSS transitions fire after first paint
     const t = setTimeout(() => setMounted(true), 50);
     return () => clearTimeout(t);
   }, []);
@@ -119,38 +118,26 @@ export default function HomePage() {
         }}
       />
 
-      {/* LOGO */}
+      {/* LOGO — mix-blend-mode:screen removes white background */}
       <div
         style={{
           opacity: mounted ? 1 : 0,
           transform: mounted ? "scale(1) translateY(0)" : "scale(0.85) translateY(-10px)",
           transition: "opacity 0.8s ease, transform 0.8s ease",
-          marginBottom: 28,
+          marginBottom: 24,
         }}
       >
-        <div
+        <Image
+          src="/logo.png"
+          alt="Situation X"
+          width={160}
+          height={160}
           style={{
-            width: 110,
-            height: 110,
-            borderRadius: 24,
-            background: "rgba(255,255,255,0.06)",
-            border: "1px solid rgba(255,255,255,0.12)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            backdropFilter: "blur(10px)",
-            boxShadow: "0 0 40px rgba(249,115,22,0.2)",
-            margin: "0 auto",
+            objectFit: "contain",
+            mixBlendMode: "screen",   // removes white background on dark bg
+            filter: "drop-shadow(0 0 24px rgba(249,115,22,0.4))",
           }}
-        >
-          <Image
-            src="/logo.png"
-            alt="Situation X"
-            width={80}
-            height={80}
-            style={{ objectFit: "contain", borderRadius: 16 }}
-          />
-        </div>
+        />
       </div>
 
       {/* APP NAME */}
@@ -160,7 +147,7 @@ export default function HomePage() {
           transform: mounted ? "translateY(0)" : "translateY(20px)",
           transition: "opacity 0.8s ease 0.15s, transform 0.8s ease 0.15s",
           textAlign: "center",
-          marginBottom: 12,
+          marginBottom: 16,
         }}
       >
         <h1
@@ -190,20 +177,18 @@ export default function HomePage() {
       >
         <p
           style={{
-            fontSize: "1.15rem",
+            fontSize: "1.2rem",
             color: "#94a3b8",
-            maxWidth: 480,
-            margin: "0 auto",
-            lineHeight: 1.7,
+            margin: 0,
             fontWeight: 400,
+            letterSpacing: "0.01em",
           }}
         >
-          Your intelligent decision companion.<br />
-          Clarity when it matters most.
+          Clarity in every direction
         </p>
       </div>
 
-      {/* CTA BUTTONS */}
+      {/* BUTTONS — Sign In + Login */}
       <div
         style={{
           opacity: mounted ? 1 : 0,
@@ -215,10 +200,11 @@ export default function HomePage() {
           justifyContent: "center",
         }}
       >
+        {/* SIGN IN — primary */}
         <button
-          onClick={() => router.push("/register")}
+          onClick={() => router.push("/login")}
           style={{
-            padding: "14px 36px",
+            padding: "14px 40px",
             background: "#f97316",
             color: "#fff",
             fontSize: "1rem",
@@ -227,7 +213,8 @@ export default function HomePage() {
             border: "none",
             cursor: "pointer",
             boxShadow: "0 4px 24px rgba(249,115,22,0.35)",
-            transition: "transform 0.2s, box-shadow 0.2s, background 0.2s",
+            transition: "transform 0.2s, box-shadow 0.2s",
+            letterSpacing: "0.01em",
           }}
           onMouseEnter={(e) => {
             (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-2px)";
@@ -238,13 +225,14 @@ export default function HomePage() {
             (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 4px 24px rgba(249,115,22,0.35)";
           }}
         >
-          Get Started Free
+          Sign In
         </button>
 
+        {/* CREATE ACCOUNT — secondary */}
         <button
-          onClick={() => router.push("/login")}
+          onClick={() => router.push("/register")}
           style={{
-            padding: "14px 36px",
+            padding: "14px 40px",
             background: "rgba(255,255,255,0.07)",
             color: "#f8fafc",
             fontSize: "1rem",
@@ -254,6 +242,7 @@ export default function HomePage() {
             cursor: "pointer",
             backdropFilter: "blur(8px)",
             transition: "transform 0.2s, background 0.2s",
+            letterSpacing: "0.01em",
           }}
           onMouseEnter={(e) => {
             (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-2px)";
@@ -264,36 +253,8 @@ export default function HomePage() {
             (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.07)";
           }}
         >
-          Login
+          Create Account
         </button>
-      </div>
-
-      {/* DIVIDER LINE */}
-      <div
-        style={{
-          opacity: mounted ? 1 : 0,
-          transition: "opacity 1s ease 0.6s",
-          width: "100%",
-          maxWidth: 400,
-          height: 1,
-          background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent)",
-          margin: "56px auto 0",
-        }}
-      />
-
-      {/* BOTTOM LABEL */}
-      <div
-        style={{
-          opacity: mounted ? 0.4 : 0,
-          transition: "opacity 1s ease 0.7s",
-          marginTop: 24,
-          fontSize: "0.8rem",
-          color: "#64748b",
-          letterSpacing: "0.08em",
-          textTransform: "uppercase",
-        }}
-      >
-        Powered by AI · Guided by the Stars
       </div>
     </main>
   );
