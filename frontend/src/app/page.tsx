@@ -12,14 +12,13 @@ export default function HomePage() {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    const t = setTimeout(() => setMounted(true), 50);
+    const t = setTimeout(() => setMounted(true), 80);
     return () => clearTimeout(t);
   }, []);
 
-  // ── LOGGED-IN VIEW ──────────────────────────────────────────────────────────
+  // ── LOGGED-IN VIEW ────────────────────────────────────────────────────────
   if (token && user) {
     const handleSubmit = async (input: string) => {
-      if (!token) return;
       try {
         setLoading(true);
         setError(null);
@@ -34,226 +33,95 @@ export default function HomePage() {
     };
 
     return (
-      <main className="min-h-screen flex flex-col items-center justify-center bg-gray-50 px-4">
-        <div
-          style={{
-            opacity: mounted ? 1 : 0,
-            transform: mounted ? "translateY(0)" : "translateY(20px)",
-            transition: "opacity 0.7s ease, transform 0.7s ease",
-          }}
-          className="text-center mb-8"
-        >
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            Welcome back,{" "}
-            <span className="text-orange-500">{user.name || user.email}</span>
+      <main style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "#f9fafb", padding: "80px 16px 32px" }}>
+        <div style={{ opacity: mounted ? 1 : 0, transform: mounted ? "translateY(0)" : "translateY(16px)", transition: "opacity 0.6s ease, transform 0.6s ease", textAlign: "center", marginBottom: 32 }}>
+          <h1 style={{ fontSize: "clamp(1.4rem, 5vw, 2rem)", fontWeight: 700, color: "#1f2937", margin: "0 0 8px" }}>
+            Welcome back, <span style={{ color: "#f97316" }}>{user.name || user.email}</span>
           </h1>
-          <p className="text-gray-500">Describe your situation and let AI guide you</p>
+          <p style={{ color: "#6b7280", fontSize: "clamp(0.85rem, 3vw, 1rem)", margin: 0 }}>
+            Describe your situation and let AI guide you
+          </p>
         </div>
-        <div
-          style={{
-            opacity: mounted ? 1 : 0,
-            transform: mounted ? "translateY(0)" : "translateY(20px)",
-            transition: "opacity 0.7s ease 0.2s, transform 0.7s ease 0.2s",
-          }}
-          className="w-full"
-        >
+        <div style={{ opacity: mounted ? 1 : 0, transform: mounted ? "translateY(0)" : "translateY(16px)", transition: "opacity 0.6s ease 0.2s, transform 0.6s ease 0.2s", width: "100%", maxWidth: 600 }}>
           <InputBox onSubmit={handleSubmit} isLoading={isLoading} />
         </div>
       </main>
     );
   }
 
-  // ── LANDING PAGE ─────────────────────────────────────────────────────────────
+  // ── LANDING PAGE ──────────────────────────────────────────────────────────
   return (
     <main
       style={{
         minHeight: "100vh",
-        background: "linear-gradient(135deg, #0f172a 0%, #1e293b 40%, #0f2027 70%, #1a1a2e 100%)",
+        background: "linear-gradient(150deg, #0f172a 0%, #1e293b 45%, #0f2027 75%, #1a1a2e 100%)",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
-        padding: "80px 24px 48px",
+        padding: "72px 24px 48px",
         position: "relative",
         overflow: "hidden",
       }}
     >
-      {/* Subtle grid overlay */}
-      <div
-        style={{
-          position: "absolute",
-          inset: 0,
-          backgroundImage:
-            "linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px)",
-          backgroundSize: "60px 60px",
-          pointerEvents: "none",
-        }}
-      />
+      {/* Grid overlay */}
+      <div style={{ position: "absolute", inset: 0, backgroundImage: "linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px)", backgroundSize: "50px 50px", pointerEvents: "none" }} />
 
-      {/* Glow accents */}
-      <div
-        style={{
-          position: "absolute",
-          top: "20%",
-          left: "10%",
-          width: 300,
-          height: 300,
-          borderRadius: "50%",
-          background: "radial-gradient(circle, rgba(249,115,22,0.12) 0%, transparent 70%)",
-          pointerEvents: "none",
-          filter: "blur(40px)",
-        }}
-      />
-      <div
-        style={{
-          position: "absolute",
-          bottom: "15%",
-          right: "8%",
-          width: 250,
-          height: 250,
-          borderRadius: "50%",
-          background: "radial-gradient(circle, rgba(59,130,246,0.10) 0%, transparent 70%)",
-          pointerEvents: "none",
-          filter: "blur(40px)",
-        }}
-      />
+      {/* Orange glow */}
+      <div style={{ position: "absolute", top: "15%", left: "5%", width: "50vw", height: "50vw", maxWidth: 320, maxHeight: 320, borderRadius: "50%", background: "radial-gradient(circle, rgba(249,115,22,0.1) 0%, transparent 70%)", pointerEvents: "none", filter: "blur(40px)" }} />
 
-      {/* LOGO — mix-blend-mode:screen removes white background */}
-      <div
-        style={{
-          opacity: mounted ? 1 : 0,
-          transform: mounted ? "scale(1) translateY(0)" : "scale(0.85) translateY(-10px)",
-          transition: "opacity 0.8s ease, transform 0.8s ease",
-          marginBottom: 24,
-        }}
-      >
+      {/* LOGO */}
+      <div style={{ opacity: mounted ? 1 : 0, transform: mounted ? "scale(1)" : "scale(0.8)", transition: "opacity 0.7s ease, transform 0.7s ease", marginBottom: "clamp(16px, 4vw, 28px)" }}>
         <Image
           src="/logo.png"
           alt="Situation X"
-          width={160}
-          height={160}
+          width={180}
+          height={180}
           style={{
             objectFit: "contain",
-            mixBlendMode: "screen",   // removes white background on dark bg
-            filter: "drop-shadow(0 0 24px rgba(249,115,22,0.4))",
+            mixBlendMode: "screen",
+            filter: "drop-shadow(0 0 32px rgba(249,115,22,0.45)) brightness(1.2)",
+            width: "clamp(120px, 30vw, 180px)",
+            height: "clamp(120px, 30vw, 180px)",
           }}
         />
       </div>
 
       {/* APP NAME */}
-      <div
-        style={{
-          opacity: mounted ? 1 : 0,
-          transform: mounted ? "translateY(0)" : "translateY(20px)",
-          transition: "opacity 0.8s ease 0.15s, transform 0.8s ease 0.15s",
-          textAlign: "center",
-          marginBottom: 16,
-        }}
-      >
-        <h1
-          style={{
-            fontSize: "clamp(2.8rem, 6vw, 4.5rem)",
-            fontWeight: 800,
-            letterSpacing: "-0.03em",
-            color: "#f8fafc",
-            margin: 0,
-            lineHeight: 1.1,
-          }}
-        >
-          Situation{" "}
-          <span style={{ color: "#f97316" }}>X</span>
+      <div style={{ opacity: mounted ? 1 : 0, transform: mounted ? "translateY(0)" : "translateY(18px)", transition: "opacity 0.7s ease 0.15s, transform 0.7s ease 0.15s", textAlign: "center", marginBottom: "clamp(8px, 2vw, 14px)" }}>
+        <h1 style={{ fontSize: "clamp(2.2rem, 10vw, 4.5rem)", fontWeight: 800, letterSpacing: "-0.03em", color: "#f8fafc", margin: 0, lineHeight: 1.1 }}>
+          Situation <span style={{ color: "#f97316" }}>X</span>
         </h1>
       </div>
 
       {/* TAGLINE */}
-      <div
-        style={{
-          opacity: mounted ? 1 : 0,
-          transform: mounted ? "translateY(0)" : "translateY(20px)",
-          transition: "opacity 0.8s ease 0.3s, transform 0.8s ease 0.3s",
-          textAlign: "center",
-          marginBottom: 48,
-        }}
-      >
-        <p
-          style={{
-            fontSize: "1.2rem",
-            color: "#94a3b8",
-            margin: 0,
-            fontWeight: 400,
-            letterSpacing: "0.01em",
-          }}
-        >
+      <div style={{ opacity: mounted ? 1 : 0, transform: mounted ? "translateY(0)" : "translateY(18px)", transition: "opacity 0.7s ease 0.3s, transform 0.7s ease 0.3s", textAlign: "center", marginBottom: "clamp(32px, 8vw, 52px)" }}>
+        <p style={{ fontSize: "clamp(0.95rem, 3.5vw, 1.2rem)", color: "#94a3b8", margin: 0, fontWeight: 400, letterSpacing: "0.01em" }}>
           Clarity in every direction
         </p>
       </div>
 
-      {/* BUTTONS — Sign In + Login */}
-      <div
-        style={{
-          opacity: mounted ? 1 : 0,
-          transform: mounted ? "translateY(0)" : "translateY(20px)",
-          transition: "opacity 0.8s ease 0.45s, transform 0.8s ease 0.45s",
-          display: "flex",
-          gap: 16,
-          flexWrap: "wrap",
-          justifyContent: "center",
-        }}
-      >
-        {/* SIGN IN — primary */}
-        <button
-          onClick={() => router.push("/login")}
-          style={{
-            padding: "14px 40px",
-            background: "#f97316",
-            color: "#fff",
-            fontSize: "1rem",
-            fontWeight: 700,
-            borderRadius: 12,
-            border: "none",
-            cursor: "pointer",
-            boxShadow: "0 4px 24px rgba(249,115,22,0.35)",
-            transition: "transform 0.2s, box-shadow 0.2s",
-            letterSpacing: "0.01em",
-          }}
-          onMouseEnter={(e) => {
-            (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-2px)";
-            (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 8px 32px rgba(249,115,22,0.5)";
-          }}
-          onMouseLeave={(e) => {
-            (e.currentTarget as HTMLButtonElement).style.transform = "translateY(0)";
-            (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 4px 24px rgba(249,115,22,0.35)";
-          }}
-        >
-          Sign In
-        </button>
+      {/* BUTTONS — Sign Up + Login only */}
+      <div style={{ opacity: mounted ? 1 : 0, transform: mounted ? "translateY(0)" : "translateY(18px)", transition: "opacity 0.7s ease 0.45s, transform 0.7s ease 0.45s", display: "flex", gap: "clamp(10px, 3vw, 16px)", flexWrap: "wrap", justifyContent: "center", width: "100%" }}>
 
-        {/* CREATE ACCOUNT — secondary */}
+        {/* SIGN UP */}
         <button
           onClick={() => router.push("/register")}
-          style={{
-            padding: "14px 40px",
-            background: "rgba(255,255,255,0.07)",
-            color: "#f8fafc",
-            fontSize: "1rem",
-            fontWeight: 600,
-            borderRadius: 12,
-            border: "1px solid rgba(255,255,255,0.15)",
-            cursor: "pointer",
-            backdropFilter: "blur(8px)",
-            transition: "transform 0.2s, background 0.2s",
-            letterSpacing: "0.01em",
-          }}
-          onMouseEnter={(e) => {
-            (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-2px)";
-            (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.12)";
-          }}
-          onMouseLeave={(e) => {
-            (e.currentTarget as HTMLButtonElement).style.transform = "translateY(0)";
-            (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.07)";
-          }}
+          style={{ padding: "clamp(12px, 3vw, 15px) clamp(28px, 8vw, 44px)", background: "#f97316", color: "#fff", fontSize: "clamp(0.9rem, 3vw, 1rem)", fontWeight: 700, borderRadius: 12, border: "none", cursor: "pointer", boxShadow: "0 4px 24px rgba(249,115,22,0.4)", transition: "transform 0.2s, box-shadow 0.2s" }}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-2px)"; (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 8px 32px rgba(249,115,22,0.55)"; }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.transform = "translateY(0)"; (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 4px 24px rgba(249,115,22,0.4)"; }}
         >
-          Create Account
+          Sign Up
+        </button>
+
+        {/* LOGIN */}
+        <button
+          onClick={() => router.push("/login")}
+          style={{ padding: "clamp(12px, 3vw, 15px) clamp(28px, 8vw, 44px)", background: "rgba(255,255,255,0.07)", color: "#f8fafc", fontSize: "clamp(0.9rem, 3vw, 1rem)", fontWeight: 600, borderRadius: 12, border: "1px solid rgba(255,255,255,0.15)", cursor: "pointer", backdropFilter: "blur(8px)", transition: "transform 0.2s, background 0.2s" }}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-2px)"; (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.12)"; }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.transform = "translateY(0)"; (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.07)"; }}
+        >
+          Login
         </button>
       </div>
     </main>
