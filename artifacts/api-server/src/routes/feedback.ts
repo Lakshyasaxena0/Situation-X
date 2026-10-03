@@ -1,34 +1,58 @@
 import { Router } from "express";
 import { db, analysesTable, feedbackTable } from "@workspace/db";
 import { eq, desc, count } from "drizzle-orm";
+import { CreateFeedbackBody, GetFeedbackListQueryParams } from "@workspace/api-zod";
 
 const router = Router();
 
-router.post("/feedback", async (req, res) => {
-  const { analysisId, rating, accuracy, comment, helpful } = req.body;
+const MAX_COMMENT_LENGTH = 2000;
+const MAX_PAGE_SIZE = 100;
 
-  if (!analysisId || !rating) {
-    res.status(400).json({ error: "missing_fields", message: "analysisId and rating are required" });
+function parseId(value: unknown): number | null {
+  const n = typeof value === "string" ? Number(value) : value;
+  return typeof n === "number" && Number.isInteger(n) && n > 0 ? n : null;
+}
+
+router.post("/feedback", async (req, res) => {
+  const parsed = CreateFeedbackBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "validation_error", message: parsed.error.message });
     return;
   }
+  const { analysisId, rating, accuracy, comment, helpful } = parsed.data;
 
-  if (rating < 1 || rating > 5) {
-    res.status(400).json({ error: "invalid_rating", message: "Rating must be between 1 and 5" });
+  // The generated schema allows any number within 1-5; the DB columns are integers.
+  if (!Number.isInteger(analysisId) || analysisId < 1) {
+    res.status(400).json({ error: "invalid_analysis_id", message: "analysisId must be a positive integer" });
+    return;
+  }
+  if (!Number.isInteger(rating) || (accuracy !== undefined && !Number.isInteger(accuracy))) {
+    res.status(400).json({ error: "invalid_rating", message: "rating and accuracy must be whole numbers between 1 and 5" });
+    return;
+  }
+  if (comment !== undefined && comment.length > MAX_COMMENT_LENGTH) {
+    res.status(400).json({ error: "comment_too_long", message: `Comment must be at most ${MAX_COMMENT_LENGTH} characters` });
     return;
   }
 
   try {
-    // Get the analysis to store a snippet
-    const [analysis] = await db.select({ situation: analysesTable.situation }).from(analysesTable).where(eq(analysesTable.id, Number(analysisId)));
-    const situationSnippet = analysis?.situation?.slice(0, 100) ?? "";
+    // The analysis must exist; also used to store a snippet.
+    const [analysis] = await db
+      .select({ situation: analysesTable.situation })
+      .from(analysesTable)
+      .where(eq(analysesTable.id, analysisId));
+    if (!analysis) {
+      res.status(404).json({ error: "not_found", message: "Analysis not found" });
+      return;
+    }
 
     const [saved] = await db.insert(feedbackTable).values({
-      analysisId: Number(analysisId),
-      situationSnippet,
-      rating: Number(rating),
-      accuracy: accuracy ? Number(accuracy) : undefined,
+      analysisId,
+      situationSnippet: analysis.situation.slice(0, 100),
+      rating,
+      accuracy: accuracy ?? null,
       comment: comment ?? null,
-      helpful: helpful !== undefined ? Boolean(helpful) : null,
+      helpful: helpful ?? null,
     }).returning();
 
     res.json({
@@ -48,18 +72,25 @@ router.post("/feedback", async (req, res) => {
 });
 
 router.get("/feedback", async (req, res) => {
-  const limit = Number(req.query.limit) || 20;
-  const offset = Number(req.query.offset) || 0;
-  const analysisId = req.query.analysisId ? Number(req.query.analysisId) : undefined;
+  const parsedQuery = GetFeedbackListQueryParams.safeParse(req.query);
+  const rawLimit = parsedQuery.success ? parsedQuery.data.limit : 20;
+  const rawOffset = parsedQuery.success ? parsedQuery.data.offset : 0;
+  // Unbounded / negative values would otherwise reach SQL LIMIT/OFFSET.
+  const limit = Math.min(MAX_PAGE_SIZE, Math.max(1, Math.floor(rawLimit)));
+  const offset = Math.max(0, Math.floor(rawOffset));
+  const analysisId = req.query.analysisId !== undefined ? parseId(req.query.analysisId) : undefined;
+  if (req.query.analysisId !== undefined && analysisId === null) {
+    res.status(400).json({ error: "invalid_analysis_id", message: "analysisId must be a positive integer" });
+    return;
+  }
 
   try {
-    let query = db.select().from(feedbackTable).orderBy(desc(feedbackTable.createdAt));
+    const where = analysisId ? eq(feedbackTable.analysisId, analysisId) : undefined;
 
     const [items, [{ total }]] = await Promise.all([
-      analysisId
-        ? db.select().from(feedbackTable).where(eq(feedbackTable.analysisId, analysisId)).orderBy(desc(feedbackTable.createdAt)).limit(limit).offset(offset)
-        : db.select().from(feedbackTable).orderBy(desc(feedbackTable.createdAt)).limit(limit).offset(offset),
-      db.select({ total: count() }).from(feedbackTable),
+      db.select().from(feedbackTable).where(where).orderBy(desc(feedbackTable.createdAt)).limit(limit).offset(offset),
+      // The total must respect the same filter as the page of items.
+      db.select({ total: count() }).from(feedbackTable).where(where),
     ]);
 
     res.json({
@@ -75,19 +106,24 @@ router.get("/feedback", async (req, res) => {
 });
 
 router.delete("/feedback/:id", async (req, res) => {
-  const id = Number(req.params.id);
-  if (!id) {
+  const id = parseId(req.params.id);
+  if (id === null) {
     res.status(400).json({ error: "invalid_id", message: "Invalid ID" });
     return;
   }
 
-  const [deleted] = await db.delete(feedbackTable).where(eq(feedbackTable.id, id)).returning();
-  if (!deleted) {
-    res.status(404).json({ error: "not_found", message: "Feedback not found" });
-    return;
-  }
+  try {
+    const [deleted] = await db.delete(feedbackTable).where(eq(feedbackTable.id, id)).returning();
+    if (!deleted) {
+      res.status(404).json({ error: "not_found", message: "Feedback not found" });
+      return;
+    }
 
-  res.json({ success: true, message: "Feedback deleted" });
+    res.json({ success: true, message: "Feedback deleted" });
+  } catch (err) {
+    req.log.error({ err }, "Feedback delete failed");
+    res.status(500).json({ error: "delete_failed", message: "Failed to delete feedback" });
+  }
 });
 
 export default router;

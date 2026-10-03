@@ -63,6 +63,16 @@ function EngineCard({ code, title, children }: { code: string; title: string; ch
   );
 }
 
+// Validation problems (HTTP 400) carry an actionable message from the API;
+// anything else gets the generic text.
+function analysisErrorMessage(error: unknown): string {
+  const e = error as { status?: number; data?: { message?: unknown } } | null;
+  if (e?.status === 400 && typeof e.data?.message === "string" && !e.data.message.startsWith("[")) {
+    return e.data.message;
+  }
+  return "Analysis failed. Please try again.";
+}
+
 function AnalysisDisplay({ result }: { result: AnalysisResult }) {
   return (
     <div className="space-y-4 mt-6">
@@ -336,7 +346,9 @@ export default function Oracle() {
           </Button>
 
           {analyze.isError && (
-            <p className="text-sm text-red-400 text-center">Analysis failed. Please try again.</p>
+            <p className="text-sm text-red-400 text-center">
+              {analysisErrorMessage(analyze.error)}
+            </p>
           )}
         </form>
 

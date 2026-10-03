@@ -1,4 +1,4 @@
-import express, { type Express } from "express";
+import express, { type Express, type NextFunction, type Request, type Response } from "express";
 import cors from "cors";
 import pinoHttp from "pino-http";
 import { clerkMiddleware } from "@clerk/express";
@@ -31,5 +31,20 @@ app.use(express.urlencoded({ extended: true }));
 app.use(clerkMiddleware());
 
 app.use("/api", router);
+
+// JSON errors for malformed bodies and unhandled route errors (Express's
+// default handler returns an HTML page, and a stack trace outside production).
+app.use((err: unknown, req: Request, res: Response, _next: NextFunction) => {
+  const status = (err as { status?: number; statusCode?: number } | null)?.status
+    ?? (err as { statusCode?: number } | null)?.statusCode;
+  const clientError = typeof status === "number" && status >= 400 && status < 500;
+  if (!clientError) req.log.error({ err }, "Unhandled error");
+  if (res.headersSent) return;
+  res.status(clientError ? status : 500).json(
+    clientError
+      ? { error: "bad_request", message: "Invalid request" }
+      : { error: "internal_error", message: "Internal server error" },
+  );
+});
 
 export default app;
