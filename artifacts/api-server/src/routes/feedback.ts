@@ -1,7 +1,8 @@
 import { Router } from "express";
 import { db, analysesTable, feedbackTable } from "@workspace/db";
-import { eq, desc, count } from "drizzle-orm";
+import { and, eq, desc, count } from "drizzle-orm";
 import { CreateFeedbackBody, GetFeedbackListQueryParams } from "@workspace/api-zod";
+import { currentUserId } from "../middlewares/requireUser.js";
 
 const router = Router();
 
@@ -36,17 +37,19 @@ router.post("/feedback", async (req, res) => {
   }
 
   try {
-    // The analysis must exist; also used to store a snippet.
+    // The analysis must exist and belong to the caller; also used to store a snippet.
+    const userId = currentUserId(res);
     const [analysis] = await db
       .select({ situation: analysesTable.situation })
       .from(analysesTable)
-      .where(eq(analysesTable.id, analysisId));
+      .where(and(eq(analysesTable.id, analysisId), eq(analysesTable.userId, userId)));
     if (!analysis) {
       res.status(404).json({ error: "not_found", message: "Analysis not found" });
       return;
     }
 
     const [saved] = await db.insert(feedbackTable).values({
+      userId,
       analysisId,
       situationSnippet: analysis.situation.slice(0, 100),
       rating,
@@ -85,7 +88,10 @@ router.get("/feedback", async (req, res) => {
   }
 
   try {
-    const where = analysisId ? eq(feedbackTable.analysisId, analysisId) : undefined;
+    const where = and(
+      eq(feedbackTable.userId, currentUserId(res)),
+      analysisId ? eq(feedbackTable.analysisId, analysisId) : undefined,
+    );
 
     const [items, [{ total }]] = await Promise.all([
       db.select().from(feedbackTable).where(where).orderBy(desc(feedbackTable.createdAt)).limit(limit).offset(offset),
@@ -94,7 +100,7 @@ router.get("/feedback", async (req, res) => {
     ]);
 
     res.json({
-      items: items.map((f) => ({ ...f, createdAt: f.createdAt.toISOString() })),
+      items: items.map(({ userId: _owner, ...f }) => ({ ...f, createdAt: f.createdAt.toISOString() })),
       total,
       limit,
       offset,
@@ -113,7 +119,10 @@ router.delete("/feedback/:id", async (req, res) => {
   }
 
   try {
-    const [deleted] = await db.delete(feedbackTable).where(eq(feedbackTable.id, id)).returning();
+    const [deleted] = await db
+      .delete(feedbackTable)
+      .where(and(eq(feedbackTable.id, id), eq(feedbackTable.userId, currentUserId(res))))
+      .returning();
     if (!deleted) {
       res.status(404).json({ error: "not_found", message: "Feedback not found" });
       return;

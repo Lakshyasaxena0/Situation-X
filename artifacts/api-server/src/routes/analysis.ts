@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db, analysesTable } from "@workspace/db";
 import { openai } from "@workspace/integrations-openai-ai-server";
-import { eq, desc, count } from "drizzle-orm";
+import { and, eq, desc, count } from "drizzle-orm";
 import {
   AnalyzeSituationBody,
   GetAnalysisHistoryQueryParams,
@@ -9,6 +9,7 @@ import {
   DeleteAnalysisParams,
 } from "@workspace/api-zod";
 import { runEngine } from "../services/engine.service.js";
+import { currentUserId } from "../middlewares/requireUser.js";
 import { BirthDataError, parseBirthInput } from "../services/vedic.service.js";
 
 const MAX_SITUATION_LENGTH = 2000; // matches the UI textarea limit
@@ -109,6 +110,7 @@ Write a concise 2-3 sentence analytical summary that ties all these findings tog
     };
 
     const [saved] = await db.insert(analysesTable).values({
+      userId: currentUserId(res),
       situation,
       category: engineResult.intent.intent,
       modules: ["AJIT", "MANU", "SIVI", "ASTRO"],
@@ -132,9 +134,10 @@ router.get("/analysis/history", async (req, res) => {
   const limit = Math.min(MAX_PAGE_SIZE, Math.max(1, Math.floor(parseResult.success ? (parseResult.data.limit ?? 20) : 20)));
   const offset = Math.max(0, Math.floor(parseResult.success ? (parseResult.data.offset ?? 0) : 0));
 
+  const owner = eq(analysesTable.userId, currentUserId(res));
   const [items, [{ total }]] = await Promise.all([
-    db.select().from(analysesTable).orderBy(desc(analysesTable.createdAt)).limit(limit).offset(offset),
-    db.select({ total: count() }).from(analysesTable),
+    db.select().from(analysesTable).where(owner).orderBy(desc(analysesTable.createdAt)).limit(limit).offset(offset),
+    db.select({ total: count() }).from(analysesTable).where(owner),
   ]);
 
   res.json({
@@ -162,13 +165,17 @@ router.get("/analysis/history/:id", async (req, res) => {
     return;
   }
 
-  const [item] = await db.select().from(analysesTable).where(eq(analysesTable.id, parseResult.data.id));
+  const [item] = await db
+    .select()
+    .from(analysesTable)
+    .where(and(eq(analysesTable.id, parseResult.data.id), eq(analysesTable.userId, currentUserId(res))));
   if (!item) {
     res.status(404).json({ error: "not_found", message: "Analysis not found" });
     return;
   }
 
-  res.json({ ...item, createdAt: item.createdAt.toISOString() });
+  const { userId: _owner, ...publicItem } = item;
+  res.json({ ...publicItem, createdAt: item.createdAt.toISOString() });
 });
 
 router.delete("/analysis/history/:id", async (req, res) => {
@@ -178,7 +185,10 @@ router.delete("/analysis/history/:id", async (req, res) => {
     return;
   }
 
-  const [deleted] = await db.delete(analysesTable).where(eq(analysesTable.id, parseResult.data.id)).returning();
+  const [deleted] = await db
+    .delete(analysesTable)
+    .where(and(eq(analysesTable.id, parseResult.data.id), eq(analysesTable.userId, currentUserId(res))))
+    .returning();
   if (!deleted) {
     res.status(404).json({ error: "not_found", message: "Analysis not found" });
     return;

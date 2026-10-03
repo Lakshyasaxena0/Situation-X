@@ -4,8 +4,8 @@ services:
     name: situation-x-backend
     env: node
     plan: free
-    buildCommand: pnpm --filter backend run build
-    startCommand: pnpm --filter backend run start
+    buildCommand: pnpm --filter situation-x-backend run build
+    startCommand: pnpm --filter situation-x-backend run start
     envVars:
       - key: PORT
         value: 4000
