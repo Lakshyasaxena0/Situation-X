@@ -1,3 +1,4 @@
+import { matchesKeyword } from "../utils/text";
 export type EmotionType =
   | "calm"
   | "stressed"
@@ -74,7 +75,7 @@ function normalize(text: string): string {
 function countMatches(text: string, keywords: string[]): number {
   let count = 0;
   for (const keyword of keywords) {
-    if (text.includes(keyword)) {
+    if (matchesKeyword(text, keyword)) {
       count++;
     }
   }

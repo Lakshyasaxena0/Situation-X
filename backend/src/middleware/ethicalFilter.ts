@@ -3,14 +3,28 @@ import { Request, Response, NextFunction } from "express";
 // -----------------------------
 // BLOCKED (HARD) TERMS
 // -----------------------------
-const HARD_BLOCK_TERMS = [
-  "kill",
-  "murder",
-  "suicide",
-  "bomb",
-  "weapon",
-  "poison",
-];
+// Matched as whole words (with common inflections). Plain substring matching
+// rejected harmless input such as "improve my skills" ("kill") or "Bombay" ("bomb").
+const HARD_BLOCK_PATTERN =
+  /\b(?:kill(?:s|ed|ing|er|ers)?|murder(?:s|ed|ing|er|ers)?|bomb(?:s|ed|ing)?|weapons?|poison(?:s|ed|ing)?)\b/i;
+
+// Self-harm: respond with support rather than a "please rephrase" rejection.
+const CRISIS_PATTERN = /\b(?:suicid(?:e|al)|kill(?:ing)? myself|end(?:ing)? my (?:own )?life)\b/i;
+
+export const CRISIS_MESSAGE =
+  "It sounds like you may be going through something very painful. This tool can't help with that, " +
+  "but you don't have to face it alone. Please reach out to someone you trust, or to a helpline such as " +
+  "Tele-MANAS in India (call 14416, free, 24x7).";
+
+export type BlockedReason = "crisis" | "unsafe";
+
+/** Returns why the text must not be analyzed, or null if it is fine. */
+export function findBlockedReason(text: string): BlockedReason | null {
+  if (CRISIS_PATTERN.test(text)) return "crisis";
+  if (HARD_BLOCK_PATTERN.test(text)) return "unsafe";
+  return null;
+}
+
 // -----------------------------
 // SOFT VIOLATION TERMS
 // -----------------------------
@@ -30,14 +44,6 @@ const SOFT_TERMS = [
 // -----------------------------
 function normalize(text: string): string {
   return text.toLowerCase().trim();
-}
-// -----------------------------
-// HARD BLOCK CHECK
-// -----------------------------
-function containsHardViolation(text: string): boolean {
-  return HARD_BLOCK_TERMS.some((term) =>
-    text.includes(term)
-  );
 }
 // -----------------------------
 // SOFT CLEANER
@@ -67,18 +73,22 @@ export function ethicalFilter(
   }
   const normalized = normalize(input);
   // HARD BLOCK
-  if (containsHardViolation(normalized)) {
-    console.warn("🚫 Ethical block triggered:", {
-      input,
+  const blocked = findBlockedReason(normalized);
+  if (blocked) {
+    // Log the category only: the text itself is private user content.
+    console.warn("Ethical block triggered:", {
+      reason: blocked,
       ip: req.ip,
       timestamp: new Date().toISOString(),
     });
-    res.status(400).json({
-      error:
-        "Input contains unsafe content. Please rephrase your situation.",
-    });
+    res.status(400).json(
+      blocked === "crisis"
+        ? { error: CRISIS_MESSAGE, code: "crisis_support" }
+        : { error: "Input contains unsafe content. Please rephrase your situation." },
+    );
     return;
   }
+
   // SOFT SANITIZATION
   const cleaned = sanitizeSoftViolations(normalized);
   req.body.input = cleaned;

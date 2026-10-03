@@ -26,7 +26,9 @@ export async function analyzeHandler(
     }
 
     // CACHE CHECK
-    const cacheKey = `analyze:${input}`;
+    // Keyed per user: a shared key returned one user's cached result to another and
+    // skipped saving it to the second user's history.
+    const cacheKey = `analyze:${userId}:${input}`;
     const cached = cache.get(cacheKey);
     if (cached) {
       logger.info("Cache hit for analyze", { userId });
@@ -66,8 +68,9 @@ export async function getHistoryHandler(
       return;
     }
 
-    const page = Number(req.query.page) || 1;
-    const limit = Number(req.query.limit) || 10;
+    // Clamp: negative / huge values would otherwise reach the range query.
+    const page = Math.max(1, Math.floor(Number(req.query.page)) || 1);
+    const limit = Math.min(100, Math.max(1, Math.floor(Number(req.query.limit)) || 10));
 
     const result = await getAnalysisByUser(userId, page, limit);
     res.status(200).json(result);

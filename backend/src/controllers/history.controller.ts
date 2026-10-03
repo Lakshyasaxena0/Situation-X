@@ -4,6 +4,7 @@ import {
   saveFeedback,
   getFeedbackByUser,
 } from "../models/history.model";
+import { getAnalysisById } from "../models/query.model";
 import { logger } from "../utils/logger";
 // -----------------------------
 // SUBMIT FEEDBACK
@@ -19,6 +20,13 @@ export async function submitFeedbackHandler(
       res.status(401).json({ error: "Unauthorized" });
       return;
     }
+    // Feedback may only be attached to the caller's own analyses.
+    const analysis = await getAnalysisById(analysisId, userId);
+    if (!analysis) {
+      res.status(404).json({ error: "Analysis not found" });
+      return;
+    }
+
     const feedback = await saveFeedback(
       userId,
       analysisId,

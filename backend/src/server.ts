@@ -14,6 +14,10 @@ dotenv.config();
 
 const app = express();
 
+// Render terminates TLS at a proxy. Without this, req.ip is the proxy's address,
+// so the rate limiter below counts *all* users together (60 requests / 15 min total).
+app.set("trust proxy", 1);
+
 app.use(
   cors({
     origin: (origin, callback) => {

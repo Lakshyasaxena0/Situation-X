@@ -4,6 +4,7 @@ import { analyzeEmotion, EmotionResult } from "./manu.service";
 import { simulatePaths, SimulationResult } from "./sivi.service";
 import { analyzeAstro, AstroResult } from "./astro.service";
 import { env } from "../config/env";
+import { findBlockedReason } from "../middleware/ethicalFilter";
 
 let groqClient: Groq | null = null;
 function getGroq(): Groq {
@@ -14,12 +15,10 @@ function getGroq(): Groq {
 export type FinalVerdict = { recommendedAction: string; reasoning: string; riskLevel: "low"|"medium"|"high"; };
 export type EngineResponse = { intent: IntentResult; emotion: EmotionResult; simulation: SimulationResult; astro?: AstroResult; finalVerdict: FinalVerdict; };
 
-const HARD = ["kill","murder","suicide","bomb","weapon","poison"];
 const SOFT = ["harm","revenge","manipulate","blackmail","stalk","abuse","threaten","violence","drug"];
 
 function ethicalFilter(input: string): string {
-  const low = input.toLowerCase();
-  if (HARD.some(t => low.includes(t))) throw new Error("Input contains unsafe content. Please rephrase your situation.");
+  if (findBlockedReason(input.toLowerCase())) throw new Error("Input contains unsafe content. Please rephrase your situation.");
   let s = input;
   for (const t of SOFT) s = s.replace(new RegExp(`\\b${t}\\b`,"gi"),"");
   return s.replace(/\s+/g," ").trim();
@@ -28,7 +27,7 @@ function ethicalFilter(input: string): string {
 function deterministicVerdict(simulation: SimulationResult, emotion: EmotionResult): FinalVerdict {
   const best = simulation.bestPath;
   let reasoning: string;
-  if (emotion.emotion === "angry" || emotion.emotion === "anxious") {
+  if (emotion.emotion === "angry" || emotion.emotion === "anxious" || emotion.emotion === "stressed") {
     reasoning = "Your current emotional state suggests avoiding impulsive actions. A stable and low-risk approach is recommended.";
   } else if (emotion.emotion === "confused") {
     reasoning = "Clarity is low. A balanced path will help avoid unnecessary mistakes.";

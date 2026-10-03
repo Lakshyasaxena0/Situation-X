@@ -1,3 +1,4 @@
+import { matchesKeyword } from "../utils/text";
 export type IntentType =
   | "decision"
   | "relationship"
@@ -17,7 +18,7 @@ const KEYWORDS: Record<IntentType, string[]> = {
     "should i",
     "kya karu",
     "what should",
-    "decide",
+    "decid",
     "choose",
     "option",
     "select",
@@ -79,7 +80,7 @@ function normalize(text: string): string {
 function countMatches(text: string, keywords: string[]): number {
   let count = 0;
   for (const keyword of keywords) {
-    if (text.includes(keyword)) {
+    if (matchesKeyword(text, keyword)) {
       count++;
     }
   }
