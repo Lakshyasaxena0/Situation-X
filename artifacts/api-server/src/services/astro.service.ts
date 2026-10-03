@@ -1,19 +1,21 @@
 // backend/src/services/astro.service.ts
 //
-// Real astronomical calculations using:
-// - VSOP87 simplified series (same mathematical base as Swiss Ephemeris)
+// Astronomical calculations (see ephemeris.service.ts):
+// - Full VSOP87D planetary theory + Meeus lunar series via `astronomia`
+//   (geocentric, light-time corrected) — arc-second level accuracy
 // - Lahiri ayanamsa (standard for Vedic/Indian astrology)
 // - Vimshottari Dasha system (4 levels: Maha → Antar → Pratyantar → Sookshma)
 // - D1 (Rasi), D9 (Navamsha), D10 (Dashamsha) divisional charts
 // - System clock for date/time (no user input required)
 // - Optional lat/lon (defaults to New Delhi if not provided)
-//
-// NO external dependencies — pure TypeScript math.
-// Accuracy: ±0.5° for inner planets, ±1.5° for outer planets.
-// This is well within acceptable range for astrological interpretation.
 
-import { IntentType } from "./ajit.service";
-import { EmotionType } from "./manu.service";
+import type { IntentType } from "./ajit.service.js";
+import type { EmotionType } from "./manu.service.js";
+import {
+  BODY_NAMES,
+  julianDayFromDate,
+  siderealLongitudes,
+} from "./ephemeris.service.js";
 
 // -----------------------------------------------------------------------
 // EXTENDED TYPE DEFINITIONS
@@ -109,155 +111,26 @@ const PLANET_ORDER = [
 const NAKSHATRA_SPAN = 360 / 27; // 13.3333°
 
 // -----------------------------------------------------------------------
-// STEP 1: JULIAN DAY NUMBER
-// -----------------------------------------------------------------------
-
-function toJulianDay(date: Date): number {
-  const Y = date.getUTCFullYear();
-  const M = date.getUTCMonth() + 1;
-  const D = date.getUTCDate();
-  const H = date.getUTCHours()
-    + date.getUTCMinutes() / 60
-    + date.getUTCSeconds() / 3600;
-
-  const A = Math.floor((14 - M) / 12);
-  const y = Y + 4800 - A;
-  const m = M + 12 * A - 3;
-
-  const JDN =
-    D +
-    Math.floor((153 * m + 2) / 5) +
-    365 * y +
-    Math.floor(y / 4) -
-    Math.floor(y / 100) +
-    Math.floor(y / 400) -
-    32045;
-
-  return JDN + (H - 12) / 24;
-}
-
-// -----------------------------------------------------------------------
-// STEP 2: LAHIRI AYANAMSA
-// Precision: ±2 arcminutes for dates 1900–2100
-// -----------------------------------------------------------------------
-
-function getLahiriAyanamsa(jd: number): number {
-  const J2000 = 2451545.0;
-  const T = (jd - J2000) / 36525;
-  // IAU precession formula adapted for Lahiri
-  return 23.85 + 0.013978 * T + 0.000003 * T * T;
-}
-
-// -----------------------------------------------------------------------
-// STEP 3: PLANETARY LONGITUDE CALCULATIONS
-// Sun & Moon: full truncated VSOP87 series
-// Planets: mean orbital elements (accuracy ~1–2°)
-// -----------------------------------------------------------------------
-
-function normalize(angle: number): number {
-  return ((angle % 360) + 360) % 360;
-}
-
-function toRad(deg: number): number {
-  return deg * (Math.PI / 180);
-}
-
-function getSunLongitude(jd: number): number {
-  const T = (jd - 2451545.0) / 36525;
-  const L0 = 280.46646 + 36000.76983 * T + 0.0003032 * T * T;
-  const Mrad = toRad(normalize(357.52911 + 35999.05029 * T - 0.0001537 * T * T));
-  const C =
-    (1.914602 - 0.004817 * T - 0.000014 * T * T) * Math.sin(Mrad) +
-    (0.019993 - 0.000101 * T) * Math.sin(2 * Mrad) +
-    0.000289 * Math.sin(3 * Mrad);
-  return normalize(L0 + C);
-}
-
-function getMoonLongitude(jd: number): number {
-  const T = (jd - 2451545.0) / 36525;
-  const L  = 218.3164477 + 481267.88123421 * T;
-  const D  = toRad(297.8501921 + 445267.1114034 * T);
-  const M  = toRad(357.5291092 + 35999.0502909 * T);
-  const Mp = toRad(134.9633964 + 477198.8675055 * T);
-  const F  = toRad(93.2720950  + 483202.0175233 * T);
-
-  const lon =
-    L +
-    6.288774 * Math.sin(Mp) +
-    1.274027 * Math.sin(2 * D - Mp) +
-    0.658314 * Math.sin(2 * D) +
-    0.213618 * Math.sin(2 * Mp) -
-    0.185116 * Math.sin(M) -
-    0.114332 * Math.sin(2 * F) +
-    0.058793 * Math.sin(2 * D - 2 * Mp) +
-    0.057066 * Math.sin(2 * D - M - Mp) +
-    0.053322 * Math.sin(2 * D + Mp) +
-    0.045758 * Math.sin(2 * D - M) +
-    0.041775 * Math.sin(M - Mp) +
-    0.034105 * Math.sin(D) +
-    0.030398 * Math.sin(2 * F - Mp) -
-    0.024649 * Math.sin(2 * Mp - 2 * D);
-
-  return normalize(lon);
-}
-
-// Mean longitude model for outer planets (J2000 epoch)
-const MEAN_ELEMENTS: Record<string, [number, number]> = {
-  Mercury: [252.250906, 149474.0722491],
-  Venus:   [181.979801,  58519.2130302],
-  Mars:    [355.433275,  19141.6964746],
-  Jupiter: [ 34.351519,   3034.9056606],
-  Saturn:  [ 50.077444,   1222.1138488],
-};
-
-function getPlanetLongitude(jd: number, planet: string): number {
-  const T = (jd - 2451545.0) / 36525;
-  const [L0, rate] = MEAN_ELEMENTS[planet];
-  return normalize(L0 + rate * T);
-}
-
-// Mean ascending node of the Moon (Rahu — North Node)
-function getRahuLongitude(jd: number): number {
-  const T = (jd - 2451545.0) / 36525;
-  const omega = 125.04452 - 1934.136261 * T + 0.0020708 * T * T;
-  return normalize(omega);
-}
-
-// -----------------------------------------------------------------------
-// STEP 4: COMPUTE ALL SIDEREAL POSITIONS
+// STEP 1: COMPUTE ALL SIDEREAL POSITIONS (Lahiri)
 // -----------------------------------------------------------------------
 
 function computePlanetPositions(
   jd: number
 ): Record<string, PlanetPosition> {
-  const ayanamsa = getLahiriAyanamsa(jd);
-
-  const tropical: Record<string, number> = {
-    Sun:     getSunLongitude(jd),
-    Moon:    getMoonLongitude(jd),
-    Mercury: getPlanetLongitude(jd, "Mercury"),
-    Venus:   getPlanetLongitude(jd, "Venus"),
-    Mars:    getPlanetLongitude(jd, "Mars"),
-    Jupiter: getPlanetLongitude(jd, "Jupiter"),
-    Saturn:  getPlanetLongitude(jd, "Saturn"),
-    Rahu:    getRahuLongitude(jd),
-  };
-
-  // Ketu is exactly 180° from Rahu
-  tropical["Ketu"] = normalize(tropical["Rahu"] + 180);
-
+  const sidereal = siderealLongitudes(jd);
   const positions: Record<string, PlanetPosition> = {};
 
-  for (const [name, tropLon] of Object.entries(tropical)) {
-    const sidereal = normalize(tropLon - ayanamsa);
-    const signIndex = Math.floor(sidereal / 30);
-    const degree = sidereal - signIndex * 30;
-    const nakshatraIndex = Math.floor(sidereal / NAKSHATRA_SPAN);
+  for (const name of BODY_NAMES) {
+    const lon = sidereal[name];
+    const signIndex = Math.floor(lon / 30);
+    const degree = lon - signIndex * 30;
+    const nakshatraIndex = Math.floor(lon / NAKSHATRA_SPAN);
     const lordIndex = nakshatraIndex % 9;
 
     positions[name] = {
       name,
-      longitude: parseFloat(sidereal.toFixed(4)),
+      // Rounding can produce exactly 360 (e.g. 359.99996); keep it in [0, 360).
+      longitude: parseFloat(lon.toFixed(4)) % 360,
       sign: SIGNS[signIndex],
       signIndex,
       degree: parseFloat(degree.toFixed(4)),
@@ -512,7 +385,9 @@ function deriveInfluence(
     stability = "medium";
     risk = "low";
     signal = "favorable";
-  } else if (strength === "debilitated" || MALEFICS.has(dasha.mahadasha.planet)) {
+  } else if (MALEFICS.has(dasha.mahadasha.planet)) {
+    // Reached only with a non-exalted, non-debilitated planet, a malefic
+    // mahadasha and a benefic antardasha.
     stability = "low";
     risk = "medium";
     signal = "challenging";
@@ -596,7 +471,7 @@ export function analyzeAstro(
   const longitude = options?.longitude ?? 77.2090;
 
   // Convert to Julian Day (UT)
-  const jd = toJulianDay(now);
+  const jd = julianDayFromDate(now);
 
   // Compute all 9 planetary positions (sidereal, Lahiri ayanamsa)
   const positions = computePlanetPositions(jd);

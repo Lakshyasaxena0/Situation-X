@@ -1,5 +1,17 @@
 // Vedic Astrology Calculator — D1, D9, D10 charts + Vimshottari Dasha (4 levels)
-// Uses simplified VSOP87 planetary position approximations + Lahiri Ayanamsa
+// Planetary positions and the Lahiri ayanamsa come from ephemeris.service.ts
+// (VSOP87 via `astronomia`); this module builds natal charts from them.
+
+import {
+  BODY_NAMES,
+  estimateUtcOffsetHours,
+  isRetrograde,
+  julianDayFromDate,
+  lahiriAyanamsa,
+  normalizeDegrees,
+  siderealLongitudes,
+  tropicalAscendant,
+} from "./ephemeris.service.js";
 
 const RASHI_NAMES = ["Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo", "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces"];
 const NAVAMSA_RASHI_START: Record<string, number> = {
@@ -11,47 +23,16 @@ const DASHA_SEQUENCE = ["Ketu", "Venus", "Sun", "Moon", "Mars", "Rahu", "Jupiter
 const DASHA_YEARS: Record<string, number> = {
   Ketu: 7, Venus: 20, Sun: 6, Moon: 10, Mars: 7, Rahu: 18, Jupiter: 16, Saturn: 19, Mercury: 17,
 };
+const TOTAL_DASHA_YEARS = 120;
+const MS_PER_YEAR = 365.25 * 24 * 60 * 60 * 1000;
+const NAKSHATRA_SPAN = 360 / 27; // 13.333...°
 
-// Nakshatra lords (27 nakshatras mapped to Vimshottari lords)
-const NAKSHATRA_LORDS = [
-  "Ketu", "Venus", "Sun", "Moon", "Mars", "Rahu", "Jupiter", "Saturn", "Mercury",
-  "Ketu", "Venus", "Sun", "Moon", "Mars", "Rahu", "Jupiter", "Saturn", "Mercury",
-  "Ketu", "Venus", "Sun", "Moon", "Mars", "Rahu", "Jupiter", "Saturn", "Mercury",
-];
-
-// Lahiri Ayanamsa calculation (approximate formula)
-function getLahiriAyanamsa(jd: number): number {
-  const T = (jd - 2451545.0) / 36525.0;
-  return 23.85 + 0.013 * T; // Simplified Lahiri ayanamsa ~23.85° at J2000
-}
-
-// Julian Day from date
-function dateToJulianDay(year: number, month: number, day: number, hour: number = 0, minute: number = 0): number {
-  if (month <= 2) { year -= 1; month += 12; }
-  const A = Math.floor(year / 100);
-  const B = 2 - A + Math.floor(A / 4);
-  return Math.floor(365.25 * (year + 4716)) + Math.floor(30.6001 * (month + 1)) + day + B - 1524.5 + (hour + minute / 60) / 24;
-}
-
-// Normalize angle to 0-360
-function norm360(angle: number): number {
-  return ((angle % 360) + 360) % 360;
-}
-
-// Mean longitude calculations (simplified VSOP87 mean elements — degrees)
-function getMeanPlanetPositions(jd: number): Record<string, number> {
-  const T = (jd - 2451545.0) / 36525.0; // Julian centuries from J2000.0
-
-  return {
-    Sun:    norm360(280.4665 + 36000.7698 * T + 0.0003032 * T * T),
-    Moon:   norm360(218.3165 + 481267.8813 * T - 0.001329 * T * T),
-    Mars:   norm360(355.4330 + 19140.2993 * T + 0.000261 * T * T),
-    Mercury:norm360(252.2509 + 149472.6749 * T - 0.0000536 * T * T),
-    Jupiter:norm360(34.3515 + 3034.9057 * T - 0.0008501 * T * T),
-    Venus:  norm360(181.9798 + 58517.8156 * T + 0.0003100 * T * T),
-    Saturn: norm360(50.0774 + 1222.1138 * T + 0.0002480 * T * T),
-    Rahu:   norm360(125.0445 - 1934.1363 * T + 0.0020708 * T * T),
-  };
+/** Thrown for malformed or out-of-range birth data (maps to HTTP 400). */
+export class BirthDataError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "BirthDataError";
+  }
 }
 
 function getSign(longitude: number): string {
@@ -88,122 +69,6 @@ function getDasamsa(longitude: number): string {
   return RASHI_NAMES[(startSign + dasamsaIndex) % 12];
 }
 
-// Calculate ascendant (Lagna) — simplified using sidereal time + latitude
-function calculateAscendant(jd: number, latitude: number, longitude: number, ayanamsa: number): number {
-  const T = (jd - 2451545.0) / 36525.0;
-  // Greenwich Mean Sidereal Time in degrees
-  const GMST = norm360(280.46061837 + 360.98564736629 * (jd - 2451545.0) + 0.000387933 * T * T);
-  const LST = norm360(GMST + longitude); // Local sidereal time
-  // Tropical ascendant (simplified — using obliquity 23.43°)
-  const eps = 23.43929 - 0.013004 * T; // obliquity
-  const epsRad = eps * Math.PI / 180;
-  const LSTrad = LST * Math.PI / 180;
-  const latRad = latitude * Math.PI / 180;
-  const y = -Math.cos(LSTrad);
-  const x = Math.sin(LSTrad) * Math.cos(epsRad) + Math.tan(latRad) * Math.sin(epsRad);
-  let asc = Math.atan2(y, x) * 180 / Math.PI;
-  asc = norm360(asc);
-  // Convert to sidereal
-  return norm360(asc - ayanamsa);
-}
-
-// Nakshatra index from Moon's longitude (0-26)
-function getNakshatraIndex(moonLongitude: number): number {
-  return Math.floor(moonLongitude / (360 / 27));
-}
-
-// Calculate Vimshottari Dasha tree up to 4 levels
-function calculateDasha(moonLongitude: number, birthDate: Date): VedicDashaTree {
-  const nakshatraIndex = getNakshatraIndex(moonLongitude);
-  const posInNakshatra = moonLongitude % (360 / 27); // degrees in nakshatra
-  const nakshatraSpan = 360 / 27; // 13.333... degrees
-
-  const lordIndex = nakshatraIndex % 9;
-  const mahadasha = DASHA_SEQUENCE[lordIndex];
-  const totalMayYears = DASHA_YEARS[mahadasha];
-  const fractionElapsed = posInNakshatra / nakshatraSpan;
-  const elapsedYears = totalMayYears * fractionElapsed;
-  const remainingYears = totalMayYears - elapsedYears;
-
-  const msPerYear = 365.25 * 24 * 60 * 60 * 1000;
-  const birthTime = birthDate.getTime();
-  const mahaStart = new Date(birthTime - elapsedYears * msPerYear);
-  const mahaEnd = new Date(birthTime + remainingYears * msPerYear);
-
-  const result: VedicDashaTree = {
-    mahadasha: { planet: mahadasha, startDate: mahaStart.toISOString().split("T")[0], endDate: mahaEnd.toISOString().split("T")[0], years: totalMayYears },
-  };
-
-  // Antardasha (2nd level)
-  const now = new Date();
-  const mahaStartTime = mahaStart.getTime();
-  const mahaEndTime = mahaEnd.getTime();
-  const mahaSpan = mahaEndTime - mahaStartTime;
-
-  let antarStart = mahaStartTime;
-  for (let i = 0; i < 9; i++) {
-    const antarPlanet = DASHA_SEQUENCE[(lordIndex + i) % 9];
-    const antarFraction = DASHA_YEARS[antarPlanet] / 120;
-    const antarSpan = mahaSpan * antarFraction;
-    const antarEnd = antarStart + antarSpan;
-
-    if (now.getTime() >= antarStart && now.getTime() < antarEnd) {
-      result.antardasha = {
-        planet: antarPlanet,
-        startDate: new Date(antarStart).toISOString().split("T")[0],
-        endDate: new Date(antarEnd).toISOString().split("T")[0],
-        years: totalMayYears * antarFraction,
-      };
-
-      // Pratyantardasha (3rd level)
-      const antarLordIndex = DASHA_SEQUENCE.indexOf(antarPlanet);
-      let pratyStart = antarStart;
-      for (let j = 0; j < 9; j++) {
-        const pratyPlanet = DASHA_SEQUENCE[(antarLordIndex + j) % 9];
-        const pratyFraction = DASHA_YEARS[pratyPlanet] / 120;
-        const pratySpan = antarSpan * pratyFraction;
-        const pratyEnd = pratyStart + pratySpan;
-
-        if (now.getTime() >= pratyStart && now.getTime() < pratyEnd) {
-          result.pratyantardasha = {
-            planet: pratyPlanet,
-            startDate: new Date(pratyStart).toISOString().split("T")[0],
-            endDate: new Date(pratyEnd).toISOString().split("T")[0],
-            years: totalMayYears * antarFraction * pratyFraction,
-          };
-
-          // Sookshmadasha (4th level)
-          const pratyLordIndex = DASHA_SEQUENCE.indexOf(pratyPlanet);
-          let sookshmaStart = pratyStart;
-          for (let k = 0; k < 9; k++) {
-            const sookshPlanet = DASHA_SEQUENCE[(pratyLordIndex + k) % 9];
-            const sookshFraction = DASHA_YEARS[sookshPlanet] / 120;
-            const sookshSpan = pratySpan * sookshFraction;
-            const sookshEnd = sookshmaStart + sookshSpan;
-
-            if (now.getTime() >= sookshmaStart && now.getTime() < sookshEnd) {
-              result.sookshmadasha = {
-                planet: sookshPlanet,
-                startDate: new Date(sookshmaStart).toISOString().split("T")[0],
-                endDate: new Date(sookshEnd).toISOString().split("T")[0],
-                years: totalMayYears * antarFraction * pratyFraction * sookshFraction,
-              };
-              break;
-            }
-            sookshmaStart = sookshEnd;
-          }
-          break;
-        }
-        pratyStart = pratyEnd;
-      }
-      break;
-    }
-    antarStart = antarEnd;
-  }
-
-  return result;
-}
-
 export type DashaLevel = { planet: string; startDate: string; endDate: string; years: number };
 export type VedicDashaTree = {
   mahadasha: DashaLevel;
@@ -211,6 +76,74 @@ export type VedicDashaTree = {
   pratyantardasha?: DashaLevel;
   sookshmadasha?: DashaLevel;
 };
+
+type Period = { planet: string; startMs: number; endMs: number; years: number };
+
+function toLevel(p: Period): DashaLevel {
+  return {
+    planet: p.planet,
+    startDate: new Date(p.startMs).toISOString().split("T")[0],
+    endDate: new Date(p.endMs).toISOString().split("T")[0],
+    years: p.years,
+  };
+}
+
+/**
+ * Finds the sub-period (antar / pratyantar / sookshma) of `parent` that
+ * contains `atMs`. Sub-periods run in Vimshottari order starting with the
+ * parent's own lord, each lasting parentYears * (lordYears / 120).
+ */
+function findSubPeriod(parent: Period, atMs: number): Period {
+  const parentIndex = DASHA_SEQUENCE.indexOf(parent.planet);
+  let start = parent.startMs;
+  let last: Period = parent;
+  for (let i = 0; i < 9; i++) {
+    const planet = DASHA_SEQUENCE[(parentIndex + i) % 9];
+    const years = (parent.years * DASHA_YEARS[planet]) / TOTAL_DASHA_YEARS;
+    const end = start + years * MS_PER_YEAR;
+    last = { planet, startMs: start, endMs: end, years };
+    if (atMs < end) return last;
+    start = end;
+  }
+  return last; // floating-point edge: atMs is at the very end of the parent
+}
+
+/**
+ * Vimshottari dasha running at `nowMs` for a person born at `birthMs` with the
+ * natal Moon at `moonLongitude` (sidereal). The birth mahadasha is only the
+ * first period of a 120-year cycle; later mahadashas are walked forward until
+ * the one containing `nowMs` is found.
+ */
+function calculateDasha(moonLongitude: number, birthMs: number, nowMs: number): VedicDashaTree {
+  const nakshatraIndex = Math.floor(moonLongitude / NAKSHATRA_SPAN);
+  const lordIndex = nakshatraIndex % 9;
+  const fractionElapsed = (moonLongitude - nakshatraIndex * NAKSHATRA_SPAN) / NAKSHATRA_SPAN;
+
+  const birthLord = DASHA_SEQUENCE[lordIndex];
+  let start = birthMs - fractionElapsed * DASHA_YEARS[birthLord] * MS_PER_YEAR;
+  let index = lordIndex;
+  let maha: Period = { planet: birthLord, startMs: start, endMs: start + DASHA_YEARS[birthLord] * MS_PER_YEAR, years: DASHA_YEARS[birthLord] };
+
+  const at = Math.max(nowMs, birthMs);
+  // 120-year cycle; the guard also covers absurdly old dates.
+  for (let guard = 0; guard < 40 && at >= maha.endMs; guard++) {
+    start = maha.endMs;
+    index += 1;
+    const planet = DASHA_SEQUENCE[index % 9];
+    maha = { planet, startMs: start, endMs: start + DASHA_YEARS[planet] * MS_PER_YEAR, years: DASHA_YEARS[planet] };
+  }
+
+  const antar = findSubPeriod(maha, at);
+  const praty = findSubPeriod(antar, at);
+  const sookshma = findSubPeriod(praty, at);
+
+  return {
+    mahadasha: toLevel(maha),
+    antardasha: toLevel(antar),
+    pratyantardasha: toLevel(praty),
+    sookshmadasha: toLevel(sookshma),
+  };
+}
 
 export type PlanetPosition = {
   name: string;
@@ -234,54 +167,76 @@ export type VedicChart = {
 
 export type VedicChartSet = { d1: VedicChart; d9: VedicChart; d10: VedicChart };
 
+const DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
+const TIME_RE = /^([01]?\d|2[0-3]):([0-5]\d)(?::[0-5]\d)?$/;
+
+/** Validates and parses birth date (YYYY-MM-DD) and optional time (HH:MM). */
+export function parseBirthInput(birthDate: string, birthTime?: string): { year: number; month: number; day: number; hour: number; minute: number } {
+  const dm = DATE_RE.exec(birthDate);
+  if (!dm) throw new BirthDataError("birthDate must be in YYYY-MM-DD format.");
+  const year = Number(dm[1]);
+  const month = Number(dm[2]);
+  const day = Number(dm[3]);
+
+  const probe = new Date(Date.UTC(year, month - 1, day));
+  if (probe.getUTCFullYear() !== year || probe.getUTCMonth() !== month - 1 || probe.getUTCDate() !== day) {
+    throw new BirthDataError("birthDate is not a valid calendar date.");
+  }
+  if (year < 1800) throw new BirthDataError("birthDate must be 1800 or later.");
+  if (probe.getTime() > Date.now() + 24 * 60 * 60 * 1000) throw new BirthDataError("birthDate cannot be in the future.");
+
+  // No time given: use local noon (the least-wrong guess; the ascendant is then only indicative).
+  let hour = 12;
+  let minute = 0;
+  if (birthTime) {
+    const tm = TIME_RE.exec(birthTime);
+    if (!tm) throw new BirthDataError("birthTime must be in HH:MM (24-hour) format.");
+    hour = Number(tm[1]);
+    minute = Number(tm[2]);
+  }
+  return { year, month, day, hour, minute };
+}
+
 export function calculateVedicCharts(
   birthDate: string,
   birthTime?: string,
   latitude: number = 28.6139, // Default: New Delhi
   longitude: number = 77.2090,
 ): VedicChartSet {
-  const [year, month, day] = birthDate.split("-").map(Number);
-  let hour = 12, minute = 0;
-  if (birthTime) {
-    const parts = birthTime.split(":");
-    hour = parseInt(parts[0]) || 12;
-    minute = parseInt(parts[1]) || 0;
+  const { year, month, day, hour, minute } = parseBirthInput(birthDate, birthTime);
+  if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90) {
+    throw new BirthDataError("latitude must be between -90 and 90.");
+  }
+  if (!Number.isFinite(longitude) || longitude < -180 || longitude > 180) {
+    throw new BirthDataError("longitude must be between -180 and 180.");
   }
 
-  // UTC offset approximation (India = UTC+5:30, use longitude for general)
-  const utcOffset = longitude / 15;
-  const utcHour = hour - utcOffset;
+  // Birth time is civil local time; convert to UTC with a best-effort zone offset.
+  const utcOffsetHours = estimateUtcOffsetHours(latitude, longitude);
+  const birthMs = Date.UTC(year, month - 1, day, hour, minute) - utcOffsetHours * 3600 * 1000;
+  const jd = julianDayFromDate(new Date(birthMs));
+  const ayanamsa = lahiriAyanamsa(jd);
 
-  const jd = dateToJulianDay(year, month, day, utcHour, minute);
-  const ayanamsa = getLahiriAyanamsa(jd);
-
-  const tropicalPositions = getMeanPlanetPositions(jd);
-  const ascendantTropical = calculateAscendant(jd, latitude, longitude, 0);
-  const ascendantSidereal = norm360(ascendantTropical - ayanamsa);
-
-  // Convert to sidereal
-  const siderealPositions: Record<string, number> = {};
-  for (const [planet, tropLon] of Object.entries(tropicalPositions)) {
-    siderealPositions[planet] = norm360(tropLon - ayanamsa);
-  }
-  siderealPositions["Ketu"] = norm360(siderealPositions["Rahu"] + 180);
-
-  const birthDateObj = new Date(year, month - 1, day, hour, minute);
+  const siderealPositions = siderealLongitudes(jd);
+  const ascendantSidereal = normalizeDegrees(tropicalAscendant(jd, latitude, longitude) - ayanamsa);
 
   // Build planet list for D1
-  const planetList = Object.entries(siderealPositions).map(([name, lon]) => ({
-    name,
-    longitude: lon,
-    sign: getSign(lon),
-    signIndex: getSignIndex(lon),
-    degree: parseFloat(getDegreeInSign(lon).toFixed(2)),
-    isRetrograde: name === "Rahu" || name === "Ketu" || (name === "Saturn" && Math.random() > 0.7), // Rahu/Ketu always retrograde
-    navamsaSign: getNavamsa(lon),
-    dasamsaSign: getDasamsa(lon),
-  }));
+  const planetList: PlanetPosition[] = BODY_NAMES.map((name) => {
+    const lon = siderealPositions[name];
+    return {
+      name,
+      longitude: lon,
+      sign: getSign(lon),
+      signIndex: getSignIndex(lon),
+      degree: parseFloat(getDegreeInSign(lon).toFixed(2)),
+      isRetrograde: isRetrograde(name, jd),
+      navamsaSign: getNavamsa(lon),
+      dasamsaSign: getDasamsa(lon),
+    };
+  });
 
-  const moonLon = siderealPositions["Moon"];
-  const dasha = calculateDasha(moonLon, birthDateObj);
+  const moonLon = siderealPositions.Moon;
+  const dasha = calculateDasha(moonLon, birthMs, Date.now());
 
   const d1: VedicChart = {
     ascendant: getSign(ascendantSidereal),

@@ -2,7 +2,8 @@ import { analyzeIntent, type IntentResult } from "./ajit.service.js";
 import { analyzeEmotion, type EmotionResult } from "./manu.service.js";
 import { simulatePaths, type SimulationResult } from "./sivi.service.js";
 import { analyzeAstro, type AstroResult } from "./astro.service.js";
-import { calculateVedicCharts, type VedicChartSet } from "./vedic.service.js";
+import { calculateVedicCharts, type VedicChart, type VedicChartSet } from "./vedic.service.js";
+import { logger } from "../lib/logger.js";
 
 export type EngineResponse = {
   intent: IntentResult;
@@ -13,22 +14,22 @@ export type EngineResponse = {
     reasoning: string;
     riskLevel: "low" | "medium" | "high";
   };
-  astro: AstroResult & { vedicCharts?: VedicChartSet };
+  astro: AstroResult & { vedicD1?: VedicChart; vedicD9?: VedicChart; vedicD10?: VedicChart };
 };
 
+const UNSAFE_PATTERN = new RegExp(
+  "\\b(?:revenge|harm(?:s|ed|ing|ful)?|manipulat(?:e|es|ed|d|ing|ion)|control someone|blackmail(?:s|ed|ing)?)\\b",
+  "g",
+);
+
 function applyEthicalFilter(input: string): string {
-  const unsafePatterns = ["revenge", "harm", "manipulate", "control someone", "blackmail"];
-  let sanitized = input.toLowerCase();
-  for (const pattern of unsafePatterns) {
-    if (sanitized.includes(pattern)) sanitized = sanitized.replace(pattern, "");
-  }
-  return sanitized.trim();
+  return input.toLowerCase().replace(UNSAFE_PATTERN, " ").replace(/\s+/g, " ").trim();
 }
 
 function deriveFinalVerdict(simulation: SimulationResult, emotion: EmotionResult): EngineResponse["finalVerdict"] {
   const best = simulation.bestPath;
   let reasoning = "";
-  if (emotion.emotion === "angry" || emotion.emotion === "anxious") {
+  if (emotion.emotion === "angry" || emotion.emotion === "anxious" || emotion.emotion === "stressed" || emotion.emotion === "sad") {
     reasoning = "Your current emotional state suggests avoiding impulsive actions. A stable and low-risk approach is recommended.";
   } else if (emotion.emotion === "confused") {
     reasoning = "Clarity is currently low. A balanced and stable path will help avoid unnecessary mistakes.";
@@ -46,14 +47,16 @@ export function runEngine(input: string, birthDate?: string, birthTime?: string,
   const emotionResult = analyzeEmotion(cleanInput);
   const simulationResult = simulatePaths(intentResult.intent, emotionResult.emotion);
   const finalVerdict = deriveFinalVerdict(simulationResult, emotionResult);
-  const astroResult = analyzeAstro(intentResult.intent, emotionResult.emotion);
+  const astroResult = analyzeAstro(intentResult.intent, emotionResult.emotion, { latitude, longitude });
 
   let vedicCharts: VedicChartSet | undefined;
   if (birthDate) {
     try {
       vedicCharts = calculateVedicCharts(birthDate, birthTime, latitude, longitude);
-    } catch (e) {
-      // Vedic charts are optional
+    } catch (err) {
+      // Vedic charts are optional; the route validates birth data up front,
+      // so reaching this is unexpected and worth a log line.
+      logger.warn({ err }, "Vedic chart calculation failed; continuing without charts");
     }
   }
 

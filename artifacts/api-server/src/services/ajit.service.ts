@@ -1,3 +1,5 @@
+import { countKeywordMatches, normalizeText } from "./text.js";
+
 export type IntentType =
   | "decision"
   | "relationship"
@@ -13,7 +15,7 @@ export type IntentResult = {
 };
 
 const KEYWORDS: Record<IntentType, string[]> = {
-  decision: ["should i", "kya karu", "what should", "decide", "choose", "option", "select", "konsa"],
+  decision: ["should i", "kya karu", "what should", "decid", "choose", "option", "select", "konsa"],
   relationship: ["love", "relationship", "girlfriend", "boyfriend", "partner", "marriage", "breakup", "ex", "ladki", "ladka"],
   conflict: ["fight", "argument", "problem", "issue", "misunderstanding", "clash", "dispute", "ladhai"],
   career: ["job", "career", "work", "salary", "promotion", "college", "study", "future"],
@@ -21,23 +23,11 @@ const KEYWORDS: Record<IntentType, string[]> = {
   unclear: [],
 };
 
-function normalize(text: string): string {
-  return text.toLowerCase().replace(/[^\w\s]/gi, "").replace(/\s+/g, " ").trim();
-}
-
-function countMatches(text: string, keywords: string[]): number {
-  let count = 0;
-  for (const keyword of keywords) {
-    if (text.includes(keyword)) count++;
-  }
-  return count;
-}
-
 function calculateScores(text: string): Record<IntentType, number> {
   const scores: Record<IntentType, number> = { decision: 0, relationship: 0, conflict: 0, career: 0, health: 0, unclear: 0 };
   for (const intent in KEYWORDS) {
     const key = intent as IntentType;
-    scores[key] = countMatches(text, KEYWORDS[key]);
+    scores[key] = countKeywordMatches(text, KEYWORDS[key]);
   }
   return scores;
 }
@@ -50,7 +40,7 @@ function getConfidence(score: number): "low" | "medium" | "high" {
 
 export function analyzeIntent(input: string): IntentResult {
   if (!input || input.length < 10) return { intent: "unclear", confidence: "low", score: 0 };
-  const normalized = normalize(input);
+  const normalized = normalizeText(input);
   const scores = calculateScores(normalized);
   let maxIntent: IntentType = "unclear";
   let maxScore = 0;

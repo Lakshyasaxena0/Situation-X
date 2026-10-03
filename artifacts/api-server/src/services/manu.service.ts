@@ -1,3 +1,5 @@
+import { countKeywordMatches, normalizeText } from "./text.js";
+
 export type EmotionType = "calm" | "stressed" | "anxious" | "angry" | "sad" | "confused";
 
 export type EmotionResult = {
@@ -15,23 +17,11 @@ const EMOTION_KEYWORDS: Record<EmotionType, string[]> = {
   confused: ["confused", "dont know", "not sure", "uncertain", "doubt"],
 };
 
-function normalize(text: string): string {
-  return text.toLowerCase().replace(/[^\w\s]/gi, "").replace(/\s+/g, " ").trim();
-}
-
-function countMatches(text: string, keywords: string[]): number {
-  let count = 0;
-  for (const keyword of keywords) {
-    if (text.includes(keyword)) count++;
-  }
-  return count;
-}
-
 function calculateScores(text: string): Record<EmotionType, number> {
   const scores: Record<EmotionType, number> = { calm: 0, stressed: 0, anxious: 0, angry: 0, sad: 0, confused: 0 };
   for (const emotion in EMOTION_KEYWORDS) {
     const key = emotion as EmotionType;
-    scores[key] = countMatches(text, EMOTION_KEYWORDS[key]);
+    scores[key] = countKeywordMatches(text, EMOTION_KEYWORDS[key]);
   }
   return scores;
 }
@@ -44,7 +34,7 @@ function getIntensity(score: number): "low" | "medium" | "high" {
 
 export function analyzeEmotion(input: string): EmotionResult {
   if (!input || input.length < 10) return { emotion: "confused", intensity: "low", score: 0 };
-  const normalized = normalize(input);
+  const normalized = normalizeText(input);
   const scores = calculateScores(normalized);
   let maxEmotion: EmotionType = "confused";
   let maxScore = 0;
