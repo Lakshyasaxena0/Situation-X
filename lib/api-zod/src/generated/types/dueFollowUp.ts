@@ -6,14 +6,10 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface FeedbackItem {
+export interface DueFollowUp {
   id: number;
-  analysisId: number;
-  situationSnippet?: string;
-  rating: number;
-  accuracy?: number;
-  comment?: string;
-  helpful?: boolean;
-  outcome?: string;
+  situation: string;
+  summary: string;
+  verdict: string;
   createdAt: string;
 }

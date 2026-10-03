@@ -23,6 +23,7 @@ import type {
   AnalyzeRequest,
   CreateFeedbackRequest,
   DeleteResponse,
+  DueFollowUpsResponse,
   ErrorResponse,
   FeedbackItem,
   FeedbackListResponse,
@@ -470,6 +471,249 @@ export const useDeleteAnalysis = <
   TContext
 > => {
   return useMutation(getDeleteAnalysisMutationOptions(options));
+};
+
+/**
+ * @summary Predictions whose time window has passed and are waiting for the user's feedback
+ */
+export const getGetDueFollowUpsUrl = () => {
+  return `/api/analysis/followups/due`;
+};
+
+export const getDueFollowUps = async (
+  options?: RequestInit,
+): Promise<DueFollowUpsResponse> => {
+  return customFetch<DueFollowUpsResponse>(getGetDueFollowUpsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetDueFollowUpsQueryKey = () => {
+  return [`/api/analysis/followups/due`] as const;
+};
+
+export const getGetDueFollowUpsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getDueFollowUps>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getDueFollowUps>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetDueFollowUpsQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getDueFollowUps>>> = ({
+    signal,
+  }) => getDueFollowUps({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getDueFollowUps>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetDueFollowUpsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getDueFollowUps>>
+>;
+export type GetDueFollowUpsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Predictions whose time window has passed and are waiting for the user's feedback
+ */
+
+export function useGetDueFollowUps<
+  TData = Awaited<ReturnType<typeof getDueFollowUps>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getDueFollowUps>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetDueFollowUpsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Ask again later
+ */
+export const getSnoozeFollowUpUrl = (id: number) => {
+  return `/api/analysis/history/${id}/followup/snooze`;
+};
+
+export const snoozeFollowUp = async (
+  id: number,
+  options?: RequestInit,
+): Promise<DeleteResponse> => {
+  return customFetch<DeleteResponse>(getSnoozeFollowUpUrl(id), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getSnoozeFollowUpMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof snoozeFollowUp>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof snoozeFollowUp>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["snoozeFollowUp"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof snoozeFollowUp>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return snoozeFollowUp(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SnoozeFollowUpMutationResult = NonNullable<
+  Awaited<ReturnType<typeof snoozeFollowUp>>
+>;
+
+export type SnoozeFollowUpMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Ask again later
+ */
+export const useSnoozeFollowUp = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof snoozeFollowUp>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof snoozeFollowUp>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getSnoozeFollowUpMutationOptions(options));
+};
+
+/**
+ * @summary Never ask about this prediction again
+ */
+export const getDismissFollowUpUrl = (id: number) => {
+  return `/api/analysis/history/${id}/followup/dismiss`;
+};
+
+export const dismissFollowUp = async (
+  id: number,
+  options?: RequestInit,
+): Promise<DeleteResponse> => {
+  return customFetch<DeleteResponse>(getDismissFollowUpUrl(id), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getDismissFollowUpMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof dismissFollowUp>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof dismissFollowUp>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["dismissFollowUp"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof dismissFollowUp>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return dismissFollowUp(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DismissFollowUpMutationResult = NonNullable<
+  Awaited<ReturnType<typeof dismissFollowUp>>
+>;
+
+export type DismissFollowUpMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Never ask about this prediction again
+ */
+export const useDismissFollowUp = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof dismissFollowUp>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof dismissFollowUp>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getDismissFollowUpMutationOptions(options));
 };
 
 /**

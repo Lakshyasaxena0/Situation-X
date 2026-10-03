@@ -8,6 +8,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { SaturnXLogo } from "@/components/SaturnXLogo";
+import { FollowUpPrompt } from "@/components/FollowUpPrompt";
 import { ReactNode, useState } from "react";
 
 interface ShellProps {
@@ -118,6 +119,7 @@ export function Shell({ children }: ShellProps) {
 
       {/* Main Content */}
       <main className="flex-1 flex flex-col min-w-0 max-w-full overflow-x-hidden">
+        <FollowUpPrompt />
         {children}
       </main>
     </div>

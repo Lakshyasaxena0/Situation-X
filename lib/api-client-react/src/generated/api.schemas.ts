@@ -209,6 +209,56 @@ export interface AstroResult {
   vedicD10?: VedicChart;
 }
 
+export type SynthesisVerdict =
+  (typeof SynthesisVerdict)[keyof typeof SynthesisVerdict];
+
+export const SynthesisVerdict = {
+  YES: "YES",
+  CONDITIONAL: "CONDITIONAL",
+  NO: "NO",
+} as const;
+
+export type SynthesisConfidence =
+  (typeof SynthesisConfidence)[keyof typeof SynthesisConfidence];
+
+export const SynthesisConfidence = {
+  low: "low",
+  medium: "medium",
+  high: "high",
+} as const;
+
+export type SynthesisSource =
+  (typeof SynthesisSource)[keyof typeof SynthesisSource];
+
+export const SynthesisSource = {
+  "ai+astro": "ai+astro",
+  engine: "engine",
+} as const;
+
+/**
+ * How accurate past predictions of this kind were, according to user follow-ups
+ */
+export interface Calibration {
+  samples: number;
+  hitRate: number;
+  applied: boolean;
+}
+
+/**
+ * Final answer produced by the AI working together with the astrology and the AJIT/MANU/SIVI modules
+ */
+export interface Synthesis {
+  verdict: SynthesisVerdict;
+  score: number;
+  confidence: SynthesisConfidence;
+  summary: string;
+  astroInsight: string;
+  advice: string;
+  timeframeDays: number;
+  source: SynthesisSource;
+  calibration?: Calibration;
+}
+
 export interface AnalysisResult {
   id: number;
   situation: string;
@@ -219,6 +269,9 @@ export interface AnalysisResult {
   astro: AstroResult;
   overallScore: number;
   summary: string;
+  synthesis?: Synthesis;
+  /** When the app will ask how the prediction turned out */
+  followUpAt?: string;
   createdAt: string;
 }
 
@@ -241,10 +294,35 @@ export interface AnalysisHistoryResponse {
   offset: number;
 }
 
+export interface DueFollowUp {
+  id: number;
+  situation: string;
+  summary: string;
+  verdict: string;
+  createdAt: string;
+}
+
+export interface DueFollowUpsResponse {
+  items: DueFollowUp[];
+  total: number;
+}
+
 export interface DeleteResponse {
   success: boolean;
   message: string;
 }
+
+/**
+ * Follow-up - did things turn out the way the reading suggested?
+ */
+export type CreateFeedbackRequestOutcome =
+  (typeof CreateFeedbackRequestOutcome)[keyof typeof CreateFeedbackRequestOutcome];
+
+export const CreateFeedbackRequestOutcome = {
+  matched: "matched",
+  partly: "partly",
+  different: "different",
+} as const;
 
 export interface CreateFeedbackRequest {
   /** ID of the analysis being reviewed */
@@ -265,6 +343,8 @@ export interface CreateFeedbackRequest {
   comment?: string;
   /** Was this analysis helpful? */
   helpful?: boolean;
+  /** Follow-up - did things turn out the way the reading suggested? */
+  outcome?: CreateFeedbackRequestOutcome;
 }
 
 export interface FeedbackItem {
@@ -275,6 +355,7 @@ export interface FeedbackItem {
   accuracy?: number;
   comment?: string;
   helpful?: boolean;
+  outcome?: string;
   createdAt: string;
 }
 

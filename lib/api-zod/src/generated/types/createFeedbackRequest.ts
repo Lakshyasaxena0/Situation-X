@@ -5,6 +5,7 @@
  * Situation X - AI + Astrology Situation Analysis API
  * OpenAPI spec version: 0.1.0
  */
+import type { CreateFeedbackRequestOutcome } from "./createFeedbackRequestOutcome";
 
 export interface CreateFeedbackRequest {
   /** ID of the analysis being reviewed */
@@ -25,4 +26,6 @@ export interface CreateFeedbackRequest {
   comment?: string;
   /** Was this analysis helpful? */
   helpful?: boolean;
+  /** Follow-up - did things turn out the way the reading suggested? */
+  outcome?: CreateFeedbackRequestOutcome;
 }

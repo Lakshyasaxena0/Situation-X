@@ -214,6 +214,25 @@ function AnalysisDisplay({ result }: { result: AnalysisResult }) {
         <p className="text-base font-semibold text-foreground mb-2">{result.finalVerdict.recommendedAction}</p>
         <p className="text-sm text-muted-foreground mb-3">{result.finalVerdict.reasoning}</p>
         <p className="text-sm text-foreground border-t border-border/50 pt-3">{result.summary}</p>
+        {result.synthesis && (
+          <div className="mt-3 space-y-2 text-sm">
+            <p className="text-muted-foreground">
+              <span className="font-mono text-xs font-bold text-foreground">ASTRO </span>
+              {result.synthesis.astroInsight}
+            </p>
+            <p className="text-muted-foreground">
+              <span className="font-mono text-xs font-bold text-foreground">NEXT STEP </span>
+              {result.synthesis.advice}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Final answer: {result.synthesis.verdict} &middot; confidence {result.synthesis.confidence}
+              {result.synthesis.source === "ai+astro" ? " · AI + astrology" : " · engine only"}
+              {result.synthesis.calibration?.applied &&
+                ` · past accuracy ${Math.round(result.synthesis.calibration.hitRate * 100)}% (${result.synthesis.calibration.samples} follow-ups)`}
+              . We&rsquo;ll ask how it turned out in about {result.synthesis.timeframeDays} days.
+            </p>
+          </div>
+        )}
       </motion.div>
     </div>
   );

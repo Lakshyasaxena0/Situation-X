@@ -12,6 +12,9 @@ export const feedbackTable = pgTable("feedback", {
   accuracy: integer("accuracy"),
   comment: text("comment"),
   helpful: boolean("helpful"),
+  // Follow-up result: did things turn out the way the reading suggested?
+  // matched | partly | different. Null for ordinary feedback. Drives calibration.
+  outcome: text("outcome"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (table) => [index("feedback_user_id_idx").on(table.userId)]);
 

@@ -2,6 +2,7 @@ import { Router } from "express";
 import { db, analysesTable, feedbackTable } from "@workspace/db";
 import { and, eq, desc, count } from "drizzle-orm";
 import { CreateFeedbackBody, GetFeedbackListQueryParams } from "@workspace/api-zod";
+import { invalidateCalibrationCache } from "../services/calibration.service.js";
 import { currentUserId } from "../middlewares/requireUser.js";
 
 const router = Router();
@@ -20,7 +21,7 @@ router.post("/feedback", async (req, res) => {
     res.status(400).json({ error: "validation_error", message: parsed.error.message });
     return;
   }
-  const { analysisId, rating, accuracy, comment, helpful } = parsed.data;
+  const { analysisId, rating, accuracy, comment, helpful, outcome } = parsed.data;
 
   // The generated schema allows any number within 1-5; the DB columns are integers.
   if (!Number.isInteger(analysisId) || analysisId < 1) {
@@ -48,15 +49,28 @@ router.post("/feedback", async (req, res) => {
       return;
     }
 
-    const [saved] = await db.insert(feedbackTable).values({
-      userId,
-      analysisId,
-      situationSnippet: analysis.situation.slice(0, 100),
-      rating,
-      accuracy: accuracy ?? null,
-      comment: comment ?? null,
-      helpful: helpful ?? null,
-    }).returning();
+    const saved = await db.transaction(async (tx) => {
+      const [row] = await tx.insert(feedbackTable).values({
+        userId,
+        analysisId,
+        situationSnippet: analysis.situation.slice(0, 100),
+        rating,
+        accuracy: accuracy ?? null,
+        comment: comment ?? null,
+        helpful: helpful ?? null,
+        outcome: outcome ?? null,
+      }).returning();
+      // A follow-up answer closes the follow-up so the user is not asked again.
+      if (outcome) {
+        await tx
+          .update(analysesTable)
+          .set({ followUpStatus: "answered" })
+          .where(and(eq(analysesTable.id, analysisId), eq(analysesTable.userId, userId)));
+      }
+      return row;
+    });
+    // New outcome data changes the accuracy figures used for calibration.
+    if (outcome) invalidateCalibrationCache();
 
     res.json({
       id: saved.id,
@@ -66,6 +80,7 @@ router.post("/feedback", async (req, res) => {
       accuracy: saved.accuracy,
       comment: saved.comment,
       helpful: saved.helpful,
+      outcome: saved.outcome,
       createdAt: saved.createdAt.toISOString(),
     });
   } catch (err) {

@@ -127,6 +127,69 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /analysis/followups/due:
+    get:
+      operationId: getDueFollowUps
+      tags: [analysis]
+      summary: Predictions whose time window has passed and are waiting for the user's feedback
+      responses:
+        "200":
+          description: Due follow-ups
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DueFollowUpsResponse"
+
+  /analysis/history/{id}/followup/snooze:
+    post:
+      operationId: snoozeFollowUp
+      tags: [analysis]
+      summary: Ask again later
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Snoozed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /analysis/history/{id}/followup/dismiss:
+    post:
+      operationId: dismissFollowUp
+      tags: [analysis]
+      summary: Never ask about this prediction again
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Dismissed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /feedback:
     post:
       operationId: createFeedback
@@ -454,6 +517,11 @@ components:
           type: number
         summary:
           type: string
+        synthesis:
+          $ref: "#/components/schemas/Synthesis"
+        followUpAt:
+          type: string
+          description: When the app will ask how the prediction turned out
         createdAt:
           type: string
       required:
@@ -467,6 +535,56 @@ components:
         - overallScore
         - summary
         - createdAt
+
+    Synthesis:
+      type: object
+      description: Final answer produced by the AI working together with the astrology and the AJIT/MANU/SIVI modules
+      properties:
+        verdict:
+          type: string
+          enum: [YES, CONDITIONAL, NO]
+        score:
+          type: number
+        confidence:
+          type: string
+          enum: [low, medium, high]
+        summary:
+          type: string
+        astroInsight:
+          type: string
+        advice:
+          type: string
+        timeframeDays:
+          type: integer
+        source:
+          type: string
+          enum: [ai+astro, engine]
+        calibration:
+          $ref: "#/components/schemas/Calibration"
+      required:
+        - verdict
+        - score
+        - confidence
+        - summary
+        - astroInsight
+        - advice
+        - timeframeDays
+        - source
+
+    Calibration:
+      type: object
+      description: How accurate past predictions of this kind were, according to user follow-ups
+      properties:
+        samples:
+          type: integer
+        hitRate:
+          type: number
+        applied:
+          type: boolean
+      required:
+        - samples
+        - hitRate
+        - applied
 
     AnalysisRecord:
       type: object
@@ -518,6 +636,39 @@ components:
         - limit
         - offset
 
+    DueFollowUp:
+      type: object
+      properties:
+        id:
+          type: integer
+        situation:
+          type: string
+        summary:
+          type: string
+        verdict:
+          type: string
+        createdAt:
+          type: string
+      required:
+        - id
+        - situation
+        - summary
+        - verdict
+        - createdAt
+
+    DueFollowUpsResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/DueFollowUp"
+        total:
+          type: integer
+      required:
+        - items
+        - total
+
     DeleteResponse:
       type: object
       properties:
@@ -551,6 +702,10 @@ components:
         helpful:
           type: boolean
           description: Was this analysis helpful?
+        outcome:
+          type: string
+          enum: [matched, partly, different]
+          description: Follow-up - did things turn out the way the reading suggested?
       required:
         - analysisId
         - rating
@@ -572,6 +727,8 @@ components:
           type: string
         helpful:
           type: boolean
+        outcome:
+          type: string
         createdAt:
           type: string
       required:

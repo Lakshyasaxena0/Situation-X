@@ -10,6 +10,7 @@ import type { EmotionResult } from "./emotionResult";
 import type { FinalVerdict } from "./finalVerdict";
 import type { IntentResult } from "./intentResult";
 import type { SimulationResult } from "./simulationResult";
+import type { Synthesis } from "./synthesis";
 
 export interface AnalysisResult {
   id: number;
@@ -21,5 +22,8 @@ export interface AnalysisResult {
   astro: AstroResult;
   overallScore: number;
   summary: string;
+  synthesis?: Synthesis;
+  /** When the app will ask how the prediction turned out */
+  followUpAt?: string;
   createdAt: string;
 }

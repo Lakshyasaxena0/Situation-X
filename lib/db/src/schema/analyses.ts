@@ -15,8 +15,12 @@ export const analysesTable = pgTable("analyses", {
   overallScore: real("overall_score").notNull().default(0),
   summary: text("summary").notNull(),
   fullAnalysis: jsonb("full_analysis"),
+  // When the app should ask the user how the prediction turned out (null = never ask,
+  // e.g. rows created before follow-ups existed) and where that follow-up stands.
+  followUpAt: timestamp("follow_up_at"),
+  followUpStatus: text("follow_up_status").notNull().default("pending"), // pending | answered | dismissed
   createdAt: timestamp("created_at").defaultNow().notNull(),
-}, (table) => [index("analyses_user_id_idx").on(table.userId)]);
+}, (table) => [index("analyses_user_id_idx").on(table.userId), index("analyses_follow_up_idx").on(table.userId, table.followUpAt)]);
 
 export const insertAnalysisSchema = createInsertSchema(analysesTable).omit({ id: true, createdAt: true });
 export type InsertAnalysis = z.infer<typeof insertAnalysisSchema>;

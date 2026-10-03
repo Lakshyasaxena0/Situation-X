@@ -258,6 +258,35 @@ export const AnalyzeSituationResponse = zod.object({
   }),
   overallScore: zod.number(),
   summary: zod.string(),
+  synthesis: zod
+    .object({
+      verdict: zod.enum(["YES", "CONDITIONAL", "NO"]),
+      score: zod.number(),
+      confidence: zod.enum(["low", "medium", "high"]),
+      summary: zod.string(),
+      astroInsight: zod.string(),
+      advice: zod.string(),
+      timeframeDays: zod.number(),
+      source: zod.enum(["ai+astro", "engine"]),
+      calibration: zod
+        .object({
+          samples: zod.number(),
+          hitRate: zod.number(),
+          applied: zod.boolean(),
+        })
+        .optional()
+        .describe(
+          "How accurate past predictions of this kind were, according to user follow-ups",
+        ),
+    })
+    .optional()
+    .describe(
+      "Final answer produced by the AI working together with the astrology and the AJIT\/MANU\/SIVI modules",
+    ),
+  followUpAt: zod
+    .string()
+    .optional()
+    .describe("When the app will ask how the prediction turned out"),
   createdAt: zod.string(),
 });
 
@@ -504,6 +533,35 @@ export const GetAnalysisHistoryResponse = zod.object({
           }),
           overallScore: zod.number(),
           summary: zod.string(),
+          synthesis: zod
+            .object({
+              verdict: zod.enum(["YES", "CONDITIONAL", "NO"]),
+              score: zod.number(),
+              confidence: zod.enum(["low", "medium", "high"]),
+              summary: zod.string(),
+              astroInsight: zod.string(),
+              advice: zod.string(),
+              timeframeDays: zod.number(),
+              source: zod.enum(["ai+astro", "engine"]),
+              calibration: zod
+                .object({
+                  samples: zod.number(),
+                  hitRate: zod.number(),
+                  applied: zod.boolean(),
+                })
+                .optional()
+                .describe(
+                  "How accurate past predictions of this kind were, according to user follow-ups",
+                ),
+            })
+            .optional()
+            .describe(
+              "Final answer produced by the AI working together with the astrology and the AJIT\/MANU\/SIVI modules",
+            ),
+          followUpAt: zod
+            .string()
+            .optional()
+            .describe("When the app will ask how the prediction turned out"),
           createdAt: zod.string(),
         })
         .optional(),
@@ -752,6 +810,35 @@ export const GetAnalysisByIdResponse = zod.object({
       }),
       overallScore: zod.number(),
       summary: zod.string(),
+      synthesis: zod
+        .object({
+          verdict: zod.enum(["YES", "CONDITIONAL", "NO"]),
+          score: zod.number(),
+          confidence: zod.enum(["low", "medium", "high"]),
+          summary: zod.string(),
+          astroInsight: zod.string(),
+          advice: zod.string(),
+          timeframeDays: zod.number(),
+          source: zod.enum(["ai+astro", "engine"]),
+          calibration: zod
+            .object({
+              samples: zod.number(),
+              hitRate: zod.number(),
+              applied: zod.boolean(),
+            })
+            .optional()
+            .describe(
+              "How accurate past predictions of this kind were, according to user follow-ups",
+            ),
+        })
+        .optional()
+        .describe(
+          "Final answer produced by the AI working together with the astrology and the AJIT\/MANU\/SIVI modules",
+        ),
+      followUpAt: zod
+        .string()
+        .optional()
+        .describe("When the app will ask how the prediction turned out"),
       createdAt: zod.string(),
     })
     .optional(),
@@ -766,6 +853,46 @@ export const DeleteAnalysisParams = zod.object({
 });
 
 export const DeleteAnalysisResponse = zod.object({
+  success: zod.boolean(),
+  message: zod.string(),
+});
+
+/**
+ * @summary Predictions whose time window has passed and are waiting for the user's feedback
+ */
+export const GetDueFollowUpsResponse = zod.object({
+  items: zod.array(
+    zod.object({
+      id: zod.number(),
+      situation: zod.string(),
+      summary: zod.string(),
+      verdict: zod.string(),
+      createdAt: zod.string(),
+    }),
+  ),
+  total: zod.number(),
+});
+
+/**
+ * @summary Ask again later
+ */
+export const SnoozeFollowUpParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const SnoozeFollowUpResponse = zod.object({
+  success: zod.boolean(),
+  message: zod.string(),
+});
+
+/**
+ * @summary Never ask about this prediction again
+ */
+export const DismissFollowUpParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const DismissFollowUpResponse = zod.object({
   success: zod.boolean(),
   message: zod.string(),
 });
@@ -792,6 +919,10 @@ export const CreateFeedbackBody = zod.object({
     .describe("How accurate was the analysis? 1-5"),
   comment: zod.string().optional().describe("Free text feedback"),
   helpful: zod.boolean().optional().describe("Was this analysis helpful?"),
+  outcome: zod
+    .enum(["matched", "partly", "different"])
+    .optional()
+    .describe("Follow-up - did things turn out the way the reading suggested?"),
 });
 
 export const CreateFeedbackResponse = zod.object({
@@ -802,6 +933,7 @@ export const CreateFeedbackResponse = zod.object({
   accuracy: zod.number().optional(),
   comment: zod.string().optional(),
   helpful: zod.boolean().optional(),
+  outcome: zod.string().optional(),
   createdAt: zod.string(),
 });
 
@@ -827,6 +959,7 @@ export const GetFeedbackListResponse = zod.object({
       accuracy: zod.number().optional(),
       comment: zod.string().optional(),
       helpful: zod.boolean().optional(),
+      outcome: zod.string().optional(),
       createdAt: zod.string(),
     }),
   ),
