@@ -6,12 +6,15 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { AstroInfluence } from "./astroInfluence";
+import type { PrashnaReading } from "./prashnaReading";
 import type { VedicChart } from "./vedicChart";
 
 export interface AstroResult {
   influence: AstroInfluence;
   interpretation: string;
   vedicD1?: VedicChart;
+  vedicD3?: VedicChart;
+  prashna?: PrashnaReading;
   vedicD9?: VedicChart;
   vedicD10?: VedicChart;
 }

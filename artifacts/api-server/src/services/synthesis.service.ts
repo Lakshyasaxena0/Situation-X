@@ -94,23 +94,22 @@ export function engineSynthesis(engine: EngineResponse, cal: Calibration): Synth
   };
 }
 
-function describeChart(engine: EngineResponse): string {
-  const d1 = engine.astro.vedicD1;
-  if (!d1) return "Natal chart: not provided (no birth data).";
-  const moon = d1.planets.find((p) => p.name === "Moon");
-  const dasha = d1.currentDasha;
-  const dashaText = dasha
-    ? `Natal Vimshottari dasha now: ${dasha.mahadasha.planet} mahadasha (${dasha.mahadasha.startDate} to ${dasha.mahadasha.endDate})` +
-      (dasha.antardasha ? `, ${dasha.antardasha.planet} antardasha (until ${dasha.antardasha.endDate})` : "") +
-      (dasha.pratyantardasha ? `, ${dasha.pratyantardasha.planet} pratyantardasha (until ${dasha.pratyantardasha.endDate})` : "")
-    : "Natal dasha: unavailable";
-  const lords = d1.planets
-    .map((p) => `${p.name} in ${p.sign}${p.isRetrograde ? " (R)" : ""}`)
-    .join(", ");
+function describePrashna(engine: EngineResponse): string {
+  const p = engine.astro.prashna;
+  const charts = p.chartsUsed.map((c) => `  - ${c.chart} (${c.purpose}): ${c.note}`).join("\n");
+  const factors = p.factors
+    .filter((f) => f.label !== "Scale centering")
+    .sort((a, b) => Math.abs(b.effect) - Math.abs(a.effect))
+    .slice(0, 8)
+    .map((f) => `  - ${f.effect > 0 ? "+" : ""}${f.effect}: ${f.detail}`)
+    .join("\n");
   return [
-    `Natal lagna (D1): ${d1.ascendant}; Moon: ${moon ? moon.sign : "n/a"}; D9 lagna: ${engine.astro.vedicD9?.ascendant ?? "n/a"}; D10 lagna: ${engine.astro.vedicD10?.ascendant ?? "n/a"}`,
-    `Natal placements: ${lords}`,
-    dashaText,
+    `Prashna (horary) chart cast for the moment the question was asked; the user gave no birth details.`,
+    `Lagna ${p.lagna} (lord ${p.lagnaLord}); Moon in ${p.moonSign}, ${p.moonNakshatra}, ${p.moonWaxing ? "waxing" : "waning"}.`,
+    `Question type: ${p.topic}; house of the question: ${p.primaryHouse}. Charts consulted:`,
+    charts,
+    `Strongest factors (score ${p.score}, signal ${p.signal}):`,
+    factors,
   ].join("\n");
 }
 
@@ -149,7 +148,7 @@ Module findings
 
 Astrology
 ${describeTransits(engine)}
-${describeChart(engine)}
+${describePrashna(engine)}
 
 Baseline score from all modules: ${base}/100 (70+ = YES, 45-69 = CONDITIONAL, below 45 = NO).
 ${calibrationText}

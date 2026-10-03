@@ -5,6 +5,7 @@
  * Situation X - AI + Astrology Situation Analysis API
  * OpenAPI spec version: 0.1.0
  */
+import type { PlanetPositionDignity } from "./planetPositionDignity";
 
 export interface PlanetPosition {
   name: string;
@@ -15,4 +16,8 @@ export interface PlanetPosition {
   isRetrograde: boolean;
   navamsaSign: string;
   dasamsaSign: string;
+  drekkanaSign?: string;
+  /** House (1-12, whole sign) counted from this chart's own lagna */
+  house?: number;
+  dignity?: PlanetPositionDignity;
 }

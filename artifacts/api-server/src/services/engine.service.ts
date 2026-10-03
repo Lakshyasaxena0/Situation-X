@@ -2,8 +2,6 @@ import { analyzeIntent, type IntentResult } from "./ajit.service.js";
 import { analyzeEmotion, type EmotionResult } from "./manu.service.js";
 import { simulatePaths, type SimulationResult } from "./sivi.service.js";
 import { analyzeAstro, type AstroResult } from "./astro.service.js";
-import { calculateVedicCharts, type VedicChart, type VedicChartSet } from "./vedic.service.js";
-import { logger } from "../lib/logger.js";
 
 export type EngineResponse = {
   intent: IntentResult;
@@ -14,7 +12,7 @@ export type EngineResponse = {
     reasoning: string;
     riskLevel: "low" | "medium" | "high";
   };
-  astro: AstroResult & { vedicD1?: VedicChart; vedicD9?: VedicChart; vedicD10?: VedicChart };
+  astro: AstroResult;
 };
 
 const UNSAFE_PATTERN = new RegExp(
@@ -39,7 +37,7 @@ function deriveFinalVerdict(simulation: SimulationResult, emotion: EmotionResult
   return { recommendedAction: best.action, reasoning, riskLevel: best.risk };
 }
 
-export function runEngine(input: string, birthDate?: string, birthTime?: string, latitude?: number, longitude?: number): EngineResponse {
+export function runEngine(input: string, latitude?: number, longitude?: number): EngineResponse {
   if (!input || input.length < 10) throw new Error("Input must be at least 10 characters long.");
 
   const cleanInput = applyEthicalFilter(input);
@@ -47,24 +45,15 @@ export function runEngine(input: string, birthDate?: string, birthTime?: string,
   const emotionResult = analyzeEmotion(cleanInput);
   const simulationResult = simulatePaths(intentResult.intent, emotionResult.emotion);
   const finalVerdict = deriveFinalVerdict(simulationResult, emotionResult);
+  // ASTRO casts the Prashna charts (D1, D3, D9, D10) for the moment of the question and reads
+  // the ones that matter for the intent AJIT detected. No birth details are involved.
   const astroResult = analyzeAstro(intentResult.intent, emotionResult.emotion, { latitude, longitude });
-
-  let vedicCharts: VedicChartSet | undefined;
-  if (birthDate) {
-    try {
-      vedicCharts = calculateVedicCharts(birthDate, birthTime, latitude, longitude);
-    } catch (err) {
-      // Vedic charts are optional; the route validates birth data up front,
-      // so reaching this is unexpected and worth a log line.
-      logger.warn({ err }, "Vedic chart calculation failed; continuing without charts");
-    }
-  }
 
   return {
     intent: intentResult,
     emotion: emotionResult,
     simulation: simulationResult,
     finalVerdict,
-    astro: { ...astroResult, ...(vedicCharts ? { vedicD1: vedicCharts.d1, vedicD9: vedicCharts.d9, vedicD10: vedicCharts.d10 } : {}) },
+    astro: astroResult,
   };
 }

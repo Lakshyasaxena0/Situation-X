@@ -6,10 +6,8 @@ import {
 import { Shell } from "@/components/layout/Shell";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { motion, AnimatePresence } from "framer-motion";
-import { Loader2, ChevronDown, ChevronUp } from "lucide-react";
+import { Loader2 } from "lucide-react";
 
 type RiskLevel = "low" | "medium" | "high";
 type Signal = "favorable" | "challenging" | "neutral";
@@ -145,49 +143,67 @@ function AnalysisDisplay({ result }: { result: AnalysisResult }) {
           </div>
           <p className="text-sm text-muted-foreground">{result.astro.interpretation}</p>
 
-          {/* Vedic Charts */}
+          {/* Prashna charts: cast for the moment of the question; no birth details */}
           {result.astro.vedicD1 && (
             <div className="mt-4 space-y-4">
-              <div className="text-xs font-mono text-muted-foreground border-t border-border pt-3">VEDIC CHARTS</div>
-              {[result.astro.vedicD1, result.astro.vedicD9, result.astro.vedicD10].filter(Boolean).map((chart) => chart && (
-                <div key={chart.chartType} className="bg-muted/30 rounded p-3">
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="text-xs font-mono font-bold text-primary">{chart.chartType}</span>
-                    <span className="text-xs text-muted-foreground">Ascendant: <strong className="text-foreground">{chart.ascendant}</strong> {chart.ascendantDegree.toFixed(1)}&deg;</span>
-                    <span className="text-xs text-muted-foreground">Ayanamsa: {chart.ayanamsa.toFixed(2)}&deg;</span>
-                  </div>
-                  <div className="grid grid-cols-3 gap-1 text-xs">
-                    {chart.planets.slice(0, 9).map((p) => (
-                      <div key={p.name} className="flex items-center gap-1">
-                        <span className="text-muted-foreground w-14 truncate">{p.name}</span>
-                        <span className="text-foreground">{p.sign}</span>
-                        {p.isRetrograde && <span className="text-orange-400">R</span>}
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Dasha tree */}
-                  {chart.chartType === "D1" && chart.currentDasha && (
-                    <div className="mt-3 border-t border-border pt-3">
-                      <div className="text-xs font-mono text-muted-foreground mb-2">VIMSHOTTARI DASHA</div>
-                      <div className="space-y-1 text-xs">
-                        {[
-                          { label: "Maha", level: chart.currentDasha.mahadasha },
-                          { label: "Antar", level: chart.currentDasha.antardasha },
-                          { label: "Pratyantar", level: chart.currentDasha.pratyantardasha },
-                          { label: "Sookshma", level: chart.currentDasha.sookshmadasha },
-                        ].filter(d => d.level).map((d, i) => (
-                          <div key={i} className="flex items-center gap-2" style={{ paddingLeft: `${i * 12}px` }}>
-                            <span className="text-muted-foreground w-20">{d.label}</span>
-                            <span className="text-primary font-semibold">{d.level!.planet}</span>
-                            <span className="text-muted-foreground">{d.level!.startDate} — {d.level!.endDate}</span>
-                          </div>
-                        ))}
-                      </div>
+              <div className="text-xs font-mono text-muted-foreground border-t border-border pt-3">
+                PRASHNA CHARTS &middot; cast for the moment you asked
+                {result.astro.prashna && ` · ${result.astro.prashna.topic}`}
+              </div>
+              {result.astro.prashna && (
+                <ul className="text-xs text-muted-foreground space-y-1">
+                  {result.astro.prashna.chartsUsed.map((u) => (
+                    <li key={u.chart}>
+                      <span className="font-mono font-bold text-primary">{u.chart}</span>{" "}
+                      <span className="text-foreground">{u.purpose}</span> &mdash; {u.note}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {[result.astro.vedicD1, result.astro.vedicD3, result.astro.vedicD9, result.astro.vedicD10].filter(Boolean).map((chart) => {
+                if (!chart) return null;
+                const used = result.astro.prashna?.chartsUsed.some((u) => u.chart === chart.chartType);
+                return (
+                  <div key={chart.chartType} className={`rounded p-3 ${used ? "bg-muted/30 border border-primary/30" : "bg-muted/10 opacity-70"}`}>
+                    <div className="flex items-center gap-2 mb-2 flex-wrap">
+                      <span className="text-xs font-mono font-bold text-primary">{chart.chartType}</span>
+                      <span className="text-xs text-muted-foreground">Lagna: <strong className="text-foreground">{chart.ascendant}</strong> {chart.ascendantDegree.toFixed(1)}&deg;</span>
+                      {used && <span className="text-[10px] uppercase tracking-wide text-primary">used for this question</span>}
                     </div>
-                  )}
-                </div>
-              ))}
+                    <div className="grid grid-cols-3 gap-1 text-xs">
+                      {chart.planets.slice(0, 9).map((p) => (
+                        <div key={p.name} className="flex items-center gap-1">
+                          <span className="text-muted-foreground w-14 truncate">{p.name}</span>
+                          <span className="text-foreground">{p.sign}</span>
+                          {p.house !== undefined && <span className="text-muted-foreground">H{p.house}</span>}
+                          {p.isRetrograde && <span className="text-orange-400">R</span>}
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Moon-based dasha */}
+                    {chart.chartType === "D1" && chart.currentDasha && (
+                      <div className="mt-3 border-t border-border pt-3">
+                        <div className="text-xs font-mono text-muted-foreground mb-2">VIMSHOTTARI DASHA (from the Moon now)</div>
+                        <div className="space-y-1 text-xs">
+                          {[
+                            { label: "Maha", level: chart.currentDasha.mahadasha },
+                            { label: "Antar", level: chart.currentDasha.antardasha },
+                            { label: "Pratyantar", level: chart.currentDasha.pratyantardasha },
+                            { label: "Sookshma", level: chart.currentDasha.sookshmadasha },
+                          ].filter(d => d.level).map((d, i) => (
+                            <div key={i} className="flex items-center gap-2" style={{ paddingLeft: `${i * 12}px` }}>
+                              <span className="text-muted-foreground w-20">{d.label}</span>
+                              <span className="text-primary font-semibold">{d.level!.planet}</span>
+                              <span className="text-muted-foreground">{d.level!.startDate} — {d.level!.endDate}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
@@ -240,14 +256,31 @@ function AnalysisDisplay({ result }: { result: AnalysisResult }) {
 
 export default function Oracle() {
   const [situation, setSituation] = useState("");
-  const [showBirth, setShowBirth] = useState(false);
-  const [birthDate, setBirthDate] = useState("");
-  const [birthTime, setBirthTime] = useState("");
-  const [latitude, setLatitude] = useState("");
-  const [longitude, setLongitude] = useState("");
+  // Optional: where the question is asked. Only refines the Prashna lagna; defaults to New Delhi.
+  const [coords, setCoords] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [locationNote, setLocationNote] = useState("");
   const [result, setResult] = useState<AnalysisResult | null>(null);
 
   const analyze = useAnalyzeSituation();
+
+  function requestLocation() {
+    if (!navigator.geolocation) {
+      setLocationNote("Location is not available in this browser; using New Delhi.");
+      return;
+    }
+    setLocationNote("Finding your location...");
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setCoords({ latitude: pos.coords.latitude, longitude: pos.coords.longitude });
+        setLocationNote("Using your current location.");
+      },
+      () => {
+        setCoords(null);
+        setLocationNote("Could not get your location; using New Delhi.");
+      },
+      { timeout: 8000, maximumAge: 10 * 60 * 1000 },
+    );
+  }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -257,10 +290,8 @@ export default function Oracle() {
       {
         data: {
           situation: situation.trim(),
-          birthDate: birthDate || undefined,
-          birthTime: birthTime || undefined,
-          latitude: latitude ? parseFloat(latitude) : undefined,
-          longitude: longitude ? parseFloat(longitude) : undefined,
+          latitude: coords?.latitude,
+          longitude: coords?.longitude,
         },
       },
       { onSuccess: (data) => setResult(data) }
@@ -292,61 +323,21 @@ export default function Oracle() {
             </div>
           </div>
 
-          {/* Optional birth data */}
-          <div>
-            <button
-              type="button"
-              onClick={() => setShowBirth(!showBirth)}
-              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
-            >
-              {showBirth ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-              Birth data for Vedic charts (optional)
-            </button>
-
-            {showBirth && (
-              <div className="mt-3 grid grid-cols-2 gap-3 p-4 bg-muted/30 rounded-lg border border-border">
-                <div>
-                  <Label className="text-xs text-muted-foreground mb-1">Birth Date</Label>
-                  <Input
-                    type="date"
-                    value={birthDate}
-                    onChange={(e) => setBirthDate(e.target.value)}
-                    className="text-sm bg-card border-card-border"
-                  />
-                </div>
-                <div>
-                  <Label className="text-xs text-muted-foreground mb-1">Birth Time</Label>
-                  <Input
-                    type="time"
-                    value={birthTime}
-                    onChange={(e) => setBirthTime(e.target.value)}
-                    className="text-sm bg-card border-card-border"
-                  />
-                </div>
-                <div>
-                  <Label className="text-xs text-muted-foreground mb-1">Latitude</Label>
-                  <Input
-                    type="number"
-                    placeholder="e.g. 28.61"
-                    value={latitude}
-                    onChange={(e) => setLatitude(e.target.value)}
-                    className="text-sm bg-card border-card-border"
-                    step="0.01"
-                  />
-                </div>
-                <div>
-                  <Label className="text-xs text-muted-foreground mb-1">Longitude</Label>
-                  <Input
-                    type="number"
-                    placeholder="e.g. 77.20"
-                    value={longitude}
-                    onChange={(e) => setLongitude(e.target.value)}
-                    className="text-sm bg-card border-card-border"
-                    step="0.01"
-                  />
-                </div>
-              </div>
-            )}
+          {/* Prashna needs no birth details: the chart is cast for the moment you ask. */}
+          <div className="text-xs text-muted-foreground">
+            <p>
+              No birth details needed. A Prashna chart (D1, D3, D9, D10) is cast for the moment you ask, and the right charts are used for your question.
+            </p>
+            <div className="mt-2 flex items-center gap-3 flex-wrap">
+              <button
+                type="button"
+                onClick={requestLocation}
+                className="underline underline-offset-2 hover:text-foreground transition-colors"
+              >
+                {coords ? "Location set" : "Use my location for a more accurate chart (optional)"}
+              </button>
+              {locationNote && <span aria-live="polite">{locationNote}</span>}
+            </div>
           </div>
 
           <Button

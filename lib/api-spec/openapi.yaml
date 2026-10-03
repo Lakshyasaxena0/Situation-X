@@ -276,21 +276,12 @@ components:
         situation:
           type: string
           description: The situation to analyze (min 10 characters)
-        birthDate:
-          type: string
-          description: Optional birth date YYYY-MM-DD for Vedic chart
-        birthTime:
-          type: string
-          description: Optional birth time HH:MM
-        birthPlace:
-          type: string
-          description: Optional birth place
         latitude:
           type: number
-          description: Optional latitude for birth place
+          description: Optional latitude of where the question is asked (default New Delhi). Only refines the Prashna ascendant; no birth details are needed.
         longitude:
           type: number
-          description: Optional longitude for birth place
+          description: Optional longitude of where the question is asked (default New Delhi)
       required:
         - situation
 
@@ -393,6 +384,14 @@ components:
           type: string
         dasamsaSign:
           type: string
+        drekkanaSign:
+          type: string
+        house:
+          type: integer
+          description: House (1-12, whole sign) counted from this chart's own lagna
+        dignity:
+          type: string
+          enum: [exalted, own, debilitated, neutral]
       required:
         - name
         - longitude
@@ -451,13 +450,103 @@ components:
           type: number
         chartType:
           type: string
-          description: "D1, D9, or D10"
+          description: "D1, D3, D9, or D10"
       required:
         - ascendant
         - ascendantDegree
         - planets
         - ayanamsa
         - chartType
+
+    PrashnaFactor:
+      type: object
+      properties:
+        label:
+          type: string
+        effect:
+          type: number
+        detail:
+          type: string
+      required:
+        - label
+        - effect
+        - detail
+
+    PrashnaChartUse:
+      type: object
+      properties:
+        chart:
+          type: string
+        purpose:
+          type: string
+        note:
+          type: string
+      required:
+        - chart
+        - purpose
+        - note
+
+    PrashnaReading:
+      type: object
+      description: Prashna (horary) chart cast for the moment of the question, read for the question type
+      properties:
+        castAt:
+          type: string
+        latitude:
+          type: number
+        longitude:
+          type: number
+        lagna:
+          type: string
+        lagnaLord:
+          type: string
+        moonSign:
+          type: string
+        moonNakshatra:
+          type: string
+        moonWaxing:
+          type: boolean
+        topic:
+          type: string
+        primaryHouse:
+          type: integer
+        chartsUsed:
+          type: array
+          items:
+            $ref: "#/components/schemas/PrashnaChartUse"
+        factors:
+          type: array
+          items:
+            $ref: "#/components/schemas/PrashnaFactor"
+        score:
+          type: number
+        signal:
+          type: string
+          enum: [favorable, challenging, neutral]
+        stability:
+          type: string
+          enum: [low, medium, high]
+        risk:
+          type: string
+          enum: [low, medium, high]
+        dominantPlanet:
+          type: string
+        summary:
+          type: string
+      required:
+        - castAt
+        - lagna
+        - lagnaLord
+        - moonSign
+        - moonNakshatra
+        - moonWaxing
+        - topic
+        - primaryHouse
+        - chartsUsed
+        - factors
+        - score
+        - signal
+        - summary
 
     AstroInfluence:
       type: object
@@ -488,6 +577,10 @@ components:
           type: string
         vedicD1:
           $ref: "#/components/schemas/VedicChart"
+        vedicD3:
+          $ref: "#/components/schemas/VedicChart"
+        prashna:
+          $ref: "#/components/schemas/PrashnaReading"
         vedicD9:
           $ref: "#/components/schemas/VedicChart"
         vedicD10:

@@ -21,20 +21,18 @@ export const AnalyzeSituationBody = zod.object({
   situation: zod
     .string()
     .describe("The situation to analyze (min 10 characters)"),
-  birthDate: zod
-    .string()
-    .optional()
-    .describe("Optional birth date YYYY-MM-DD for Vedic chart"),
-  birthTime: zod.string().optional().describe("Optional birth time HH:MM"),
-  birthPlace: zod.string().optional().describe("Optional birth place"),
   latitude: zod
     .number()
     .optional()
-    .describe("Optional latitude for birth place"),
+    .describe(
+      "Optional latitude of where the question is asked (default New Delhi). Only refines the Prashna ascendant; no birth details are needed.",
+    ),
   longitude: zod
     .number()
     .optional()
-    .describe("Optional longitude for birth place"),
+    .describe(
+      "Optional longitude of where the question is asked (default New Delhi)",
+    ),
 });
 
 export const AnalyzeSituationResponse = zod.object({
@@ -107,6 +105,16 @@ export const AnalyzeSituationResponse = zod.object({
             isRetrograde: zod.boolean(),
             navamsaSign: zod.string(),
             dasamsaSign: zod.string(),
+            drekkanaSign: zod.string().optional(),
+            house: zod
+              .number()
+              .optional()
+              .describe(
+                "House (1-12, whole sign) counted from this chart's own lagna",
+              ),
+            dignity: zod
+              .enum(["exalted", "own", "debilitated", "neutral"])
+              .optional(),
           }),
         ),
         currentDasha: zod
@@ -144,9 +152,110 @@ export const AnalyzeSituationResponse = zod.object({
           })
           .optional(),
         ayanamsa: zod.number(),
-        chartType: zod.string().describe("D1, D9, or D10"),
+        chartType: zod.string().describe("D1, D3, D9, or D10"),
       })
       .optional(),
+    vedicD3: zod
+      .object({
+        ascendant: zod.string(),
+        ascendantDegree: zod.number(),
+        planets: zod.array(
+          zod.object({
+            name: zod.string(),
+            longitude: zod.number(),
+            sign: zod.string(),
+            signIndex: zod.number(),
+            degree: zod.number(),
+            isRetrograde: zod.boolean(),
+            navamsaSign: zod.string(),
+            dasamsaSign: zod.string(),
+            drekkanaSign: zod.string().optional(),
+            house: zod
+              .number()
+              .optional()
+              .describe(
+                "House (1-12, whole sign) counted from this chart's own lagna",
+              ),
+            dignity: zod
+              .enum(["exalted", "own", "debilitated", "neutral"])
+              .optional(),
+          }),
+        ),
+        currentDasha: zod
+          .object({
+            mahadasha: zod.object({
+              planet: zod.string(),
+              startDate: zod.string(),
+              endDate: zod.string(),
+              years: zod.number(),
+            }),
+            antardasha: zod
+              .object({
+                planet: zod.string(),
+                startDate: zod.string(),
+                endDate: zod.string(),
+                years: zod.number(),
+              })
+              .optional(),
+            pratyantardasha: zod
+              .object({
+                planet: zod.string(),
+                startDate: zod.string(),
+                endDate: zod.string(),
+                years: zod.number(),
+              })
+              .optional(),
+            sookshmadasha: zod
+              .object({
+                planet: zod.string(),
+                startDate: zod.string(),
+                endDate: zod.string(),
+                years: zod.number(),
+              })
+              .optional(),
+          })
+          .optional(),
+        ayanamsa: zod.number(),
+        chartType: zod.string().describe("D1, D3, D9, or D10"),
+      })
+      .optional(),
+    prashna: zod
+      .object({
+        castAt: zod.string(),
+        latitude: zod.number().optional(),
+        longitude: zod.number().optional(),
+        lagna: zod.string(),
+        lagnaLord: zod.string(),
+        moonSign: zod.string(),
+        moonNakshatra: zod.string(),
+        moonWaxing: zod.boolean(),
+        topic: zod.string(),
+        primaryHouse: zod.number(),
+        chartsUsed: zod.array(
+          zod.object({
+            chart: zod.string(),
+            purpose: zod.string(),
+            note: zod.string(),
+          }),
+        ),
+        factors: zod.array(
+          zod.object({
+            label: zod.string(),
+            effect: zod.number(),
+            detail: zod.string(),
+          }),
+        ),
+        score: zod.number(),
+        signal: zod.enum(["favorable", "challenging", "neutral"]),
+        stability: zod.enum(["low", "medium", "high"]).optional(),
+        risk: zod.enum(["low", "medium", "high"]).optional(),
+        dominantPlanet: zod.string().optional(),
+        summary: zod.string(),
+      })
+      .optional()
+      .describe(
+        "Prashna (horary) chart cast for the moment of the question, read for the question type",
+      ),
     vedicD9: zod
       .object({
         ascendant: zod.string(),
@@ -161,6 +270,16 @@ export const AnalyzeSituationResponse = zod.object({
             isRetrograde: zod.boolean(),
             navamsaSign: zod.string(),
             dasamsaSign: zod.string(),
+            drekkanaSign: zod.string().optional(),
+            house: zod
+              .number()
+              .optional()
+              .describe(
+                "House (1-12, whole sign) counted from this chart's own lagna",
+              ),
+            dignity: zod
+              .enum(["exalted", "own", "debilitated", "neutral"])
+              .optional(),
           }),
         ),
         currentDasha: zod
@@ -198,7 +317,7 @@ export const AnalyzeSituationResponse = zod.object({
           })
           .optional(),
         ayanamsa: zod.number(),
-        chartType: zod.string().describe("D1, D9, or D10"),
+        chartType: zod.string().describe("D1, D3, D9, or D10"),
       })
       .optional(),
     vedicD10: zod
@@ -215,6 +334,16 @@ export const AnalyzeSituationResponse = zod.object({
             isRetrograde: zod.boolean(),
             navamsaSign: zod.string(),
             dasamsaSign: zod.string(),
+            drekkanaSign: zod.string().optional(),
+            house: zod
+              .number()
+              .optional()
+              .describe(
+                "House (1-12, whole sign) counted from this chart's own lagna",
+              ),
+            dignity: zod
+              .enum(["exalted", "own", "debilitated", "neutral"])
+              .optional(),
           }),
         ),
         currentDasha: zod
@@ -252,7 +381,7 @@ export const AnalyzeSituationResponse = zod.object({
           })
           .optional(),
         ayanamsa: zod.number(),
-        chartType: zod.string().describe("D1, D9, or D10"),
+        chartType: zod.string().describe("D1, D3, D9, or D10"),
       })
       .optional(),
   }),
@@ -382,6 +511,16 @@ export const GetAnalysisHistoryResponse = zod.object({
                     isRetrograde: zod.boolean(),
                     navamsaSign: zod.string(),
                     dasamsaSign: zod.string(),
+                    drekkanaSign: zod.string().optional(),
+                    house: zod
+                      .number()
+                      .optional()
+                      .describe(
+                        "House (1-12, whole sign) counted from this chart's own lagna",
+                      ),
+                    dignity: zod
+                      .enum(["exalted", "own", "debilitated", "neutral"])
+                      .optional(),
                   }),
                 ),
                 currentDasha: zod
@@ -419,9 +558,110 @@ export const GetAnalysisHistoryResponse = zod.object({
                   })
                   .optional(),
                 ayanamsa: zod.number(),
-                chartType: zod.string().describe("D1, D9, or D10"),
+                chartType: zod.string().describe("D1, D3, D9, or D10"),
               })
               .optional(),
+            vedicD3: zod
+              .object({
+                ascendant: zod.string(),
+                ascendantDegree: zod.number(),
+                planets: zod.array(
+                  zod.object({
+                    name: zod.string(),
+                    longitude: zod.number(),
+                    sign: zod.string(),
+                    signIndex: zod.number(),
+                    degree: zod.number(),
+                    isRetrograde: zod.boolean(),
+                    navamsaSign: zod.string(),
+                    dasamsaSign: zod.string(),
+                    drekkanaSign: zod.string().optional(),
+                    house: zod
+                      .number()
+                      .optional()
+                      .describe(
+                        "House (1-12, whole sign) counted from this chart's own lagna",
+                      ),
+                    dignity: zod
+                      .enum(["exalted", "own", "debilitated", "neutral"])
+                      .optional(),
+                  }),
+                ),
+                currentDasha: zod
+                  .object({
+                    mahadasha: zod.object({
+                      planet: zod.string(),
+                      startDate: zod.string(),
+                      endDate: zod.string(),
+                      years: zod.number(),
+                    }),
+                    antardasha: zod
+                      .object({
+                        planet: zod.string(),
+                        startDate: zod.string(),
+                        endDate: zod.string(),
+                        years: zod.number(),
+                      })
+                      .optional(),
+                    pratyantardasha: zod
+                      .object({
+                        planet: zod.string(),
+                        startDate: zod.string(),
+                        endDate: zod.string(),
+                        years: zod.number(),
+                      })
+                      .optional(),
+                    sookshmadasha: zod
+                      .object({
+                        planet: zod.string(),
+                        startDate: zod.string(),
+                        endDate: zod.string(),
+                        years: zod.number(),
+                      })
+                      .optional(),
+                  })
+                  .optional(),
+                ayanamsa: zod.number(),
+                chartType: zod.string().describe("D1, D3, D9, or D10"),
+              })
+              .optional(),
+            prashna: zod
+              .object({
+                castAt: zod.string(),
+                latitude: zod.number().optional(),
+                longitude: zod.number().optional(),
+                lagna: zod.string(),
+                lagnaLord: zod.string(),
+                moonSign: zod.string(),
+                moonNakshatra: zod.string(),
+                moonWaxing: zod.boolean(),
+                topic: zod.string(),
+                primaryHouse: zod.number(),
+                chartsUsed: zod.array(
+                  zod.object({
+                    chart: zod.string(),
+                    purpose: zod.string(),
+                    note: zod.string(),
+                  }),
+                ),
+                factors: zod.array(
+                  zod.object({
+                    label: zod.string(),
+                    effect: zod.number(),
+                    detail: zod.string(),
+                  }),
+                ),
+                score: zod.number(),
+                signal: zod.enum(["favorable", "challenging", "neutral"]),
+                stability: zod.enum(["low", "medium", "high"]).optional(),
+                risk: zod.enum(["low", "medium", "high"]).optional(),
+                dominantPlanet: zod.string().optional(),
+                summary: zod.string(),
+              })
+              .optional()
+              .describe(
+                "Prashna (horary) chart cast for the moment of the question, read for the question type",
+              ),
             vedicD9: zod
               .object({
                 ascendant: zod.string(),
@@ -436,6 +676,16 @@ export const GetAnalysisHistoryResponse = zod.object({
                     isRetrograde: zod.boolean(),
                     navamsaSign: zod.string(),
                     dasamsaSign: zod.string(),
+                    drekkanaSign: zod.string().optional(),
+                    house: zod
+                      .number()
+                      .optional()
+                      .describe(
+                        "House (1-12, whole sign) counted from this chart's own lagna",
+                      ),
+                    dignity: zod
+                      .enum(["exalted", "own", "debilitated", "neutral"])
+                      .optional(),
                   }),
                 ),
                 currentDasha: zod
@@ -473,7 +723,7 @@ export const GetAnalysisHistoryResponse = zod.object({
                   })
                   .optional(),
                 ayanamsa: zod.number(),
-                chartType: zod.string().describe("D1, D9, or D10"),
+                chartType: zod.string().describe("D1, D3, D9, or D10"),
               })
               .optional(),
             vedicD10: zod
@@ -490,6 +740,16 @@ export const GetAnalysisHistoryResponse = zod.object({
                     isRetrograde: zod.boolean(),
                     navamsaSign: zod.string(),
                     dasamsaSign: zod.string(),
+                    drekkanaSign: zod.string().optional(),
+                    house: zod
+                      .number()
+                      .optional()
+                      .describe(
+                        "House (1-12, whole sign) counted from this chart's own lagna",
+                      ),
+                    dignity: zod
+                      .enum(["exalted", "own", "debilitated", "neutral"])
+                      .optional(),
                   }),
                 ),
                 currentDasha: zod
@@ -527,7 +787,7 @@ export const GetAnalysisHistoryResponse = zod.object({
                   })
                   .optional(),
                 ayanamsa: zod.number(),
-                chartType: zod.string().describe("D1, D9, or D10"),
+                chartType: zod.string().describe("D1, D3, D9, or D10"),
               })
               .optional(),
           }),
@@ -659,6 +919,16 @@ export const GetAnalysisByIdResponse = zod.object({
                 isRetrograde: zod.boolean(),
                 navamsaSign: zod.string(),
                 dasamsaSign: zod.string(),
+                drekkanaSign: zod.string().optional(),
+                house: zod
+                  .number()
+                  .optional()
+                  .describe(
+                    "House (1-12, whole sign) counted from this chart's own lagna",
+                  ),
+                dignity: zod
+                  .enum(["exalted", "own", "debilitated", "neutral"])
+                  .optional(),
               }),
             ),
             currentDasha: zod
@@ -696,9 +966,110 @@ export const GetAnalysisByIdResponse = zod.object({
               })
               .optional(),
             ayanamsa: zod.number(),
-            chartType: zod.string().describe("D1, D9, or D10"),
+            chartType: zod.string().describe("D1, D3, D9, or D10"),
           })
           .optional(),
+        vedicD3: zod
+          .object({
+            ascendant: zod.string(),
+            ascendantDegree: zod.number(),
+            planets: zod.array(
+              zod.object({
+                name: zod.string(),
+                longitude: zod.number(),
+                sign: zod.string(),
+                signIndex: zod.number(),
+                degree: zod.number(),
+                isRetrograde: zod.boolean(),
+                navamsaSign: zod.string(),
+                dasamsaSign: zod.string(),
+                drekkanaSign: zod.string().optional(),
+                house: zod
+                  .number()
+                  .optional()
+                  .describe(
+                    "House (1-12, whole sign) counted from this chart's own lagna",
+                  ),
+                dignity: zod
+                  .enum(["exalted", "own", "debilitated", "neutral"])
+                  .optional(),
+              }),
+            ),
+            currentDasha: zod
+              .object({
+                mahadasha: zod.object({
+                  planet: zod.string(),
+                  startDate: zod.string(),
+                  endDate: zod.string(),
+                  years: zod.number(),
+                }),
+                antardasha: zod
+                  .object({
+                    planet: zod.string(),
+                    startDate: zod.string(),
+                    endDate: zod.string(),
+                    years: zod.number(),
+                  })
+                  .optional(),
+                pratyantardasha: zod
+                  .object({
+                    planet: zod.string(),
+                    startDate: zod.string(),
+                    endDate: zod.string(),
+                    years: zod.number(),
+                  })
+                  .optional(),
+                sookshmadasha: zod
+                  .object({
+                    planet: zod.string(),
+                    startDate: zod.string(),
+                    endDate: zod.string(),
+                    years: zod.number(),
+                  })
+                  .optional(),
+              })
+              .optional(),
+            ayanamsa: zod.number(),
+            chartType: zod.string().describe("D1, D3, D9, or D10"),
+          })
+          .optional(),
+        prashna: zod
+          .object({
+            castAt: zod.string(),
+            latitude: zod.number().optional(),
+            longitude: zod.number().optional(),
+            lagna: zod.string(),
+            lagnaLord: zod.string(),
+            moonSign: zod.string(),
+            moonNakshatra: zod.string(),
+            moonWaxing: zod.boolean(),
+            topic: zod.string(),
+            primaryHouse: zod.number(),
+            chartsUsed: zod.array(
+              zod.object({
+                chart: zod.string(),
+                purpose: zod.string(),
+                note: zod.string(),
+              }),
+            ),
+            factors: zod.array(
+              zod.object({
+                label: zod.string(),
+                effect: zod.number(),
+                detail: zod.string(),
+              }),
+            ),
+            score: zod.number(),
+            signal: zod.enum(["favorable", "challenging", "neutral"]),
+            stability: zod.enum(["low", "medium", "high"]).optional(),
+            risk: zod.enum(["low", "medium", "high"]).optional(),
+            dominantPlanet: zod.string().optional(),
+            summary: zod.string(),
+          })
+          .optional()
+          .describe(
+            "Prashna (horary) chart cast for the moment of the question, read for the question type",
+          ),
         vedicD9: zod
           .object({
             ascendant: zod.string(),
@@ -713,6 +1084,16 @@ export const GetAnalysisByIdResponse = zod.object({
                 isRetrograde: zod.boolean(),
                 navamsaSign: zod.string(),
                 dasamsaSign: zod.string(),
+                drekkanaSign: zod.string().optional(),
+                house: zod
+                  .number()
+                  .optional()
+                  .describe(
+                    "House (1-12, whole sign) counted from this chart's own lagna",
+                  ),
+                dignity: zod
+                  .enum(["exalted", "own", "debilitated", "neutral"])
+                  .optional(),
               }),
             ),
             currentDasha: zod
@@ -750,7 +1131,7 @@ export const GetAnalysisByIdResponse = zod.object({
               })
               .optional(),
             ayanamsa: zod.number(),
-            chartType: zod.string().describe("D1, D9, or D10"),
+            chartType: zod.string().describe("D1, D3, D9, or D10"),
           })
           .optional(),
         vedicD10: zod
@@ -767,6 +1148,16 @@ export const GetAnalysisByIdResponse = zod.object({
                 isRetrograde: zod.boolean(),
                 navamsaSign: zod.string(),
                 dasamsaSign: zod.string(),
+                drekkanaSign: zod.string().optional(),
+                house: zod
+                  .number()
+                  .optional()
+                  .describe(
+                    "House (1-12, whole sign) counted from this chart's own lagna",
+                  ),
+                dignity: zod
+                  .enum(["exalted", "own", "debilitated", "neutral"])
+                  .optional(),
               }),
             ),
             currentDasha: zod
@@ -804,7 +1195,7 @@ export const GetAnalysisByIdResponse = zod.object({
               })
               .optional(),
             ayanamsa: zod.number(),
-            chartType: zod.string().describe("D1, D9, or D10"),
+            chartType: zod.string().describe("D1, D3, D9, or D10"),
           })
           .optional(),
       }),

@@ -12,15 +12,9 @@ export interface HealthStatus {
 export interface AnalyzeRequest {
   /** The situation to analyze (min 10 characters) */
   situation: string;
-  /** Optional birth date YYYY-MM-DD for Vedic chart */
-  birthDate?: string;
-  /** Optional birth time HH:MM */
-  birthTime?: string;
-  /** Optional birth place */
-  birthPlace?: string;
-  /** Optional latitude for birth place */
+  /** Optional latitude of where the question is asked (default New Delhi). Only refines the Prashna ascendant; no birth details are needed. */
   latitude?: number;
-  /** Optional longitude for birth place */
+  /** Optional longitude of where the question is asked (default New Delhi) */
   longitude?: number;
 }
 
@@ -132,6 +126,16 @@ export interface FinalVerdict {
   riskLevel: FinalVerdictRiskLevel;
 }
 
+export type PlanetPositionDignity =
+  (typeof PlanetPositionDignity)[keyof typeof PlanetPositionDignity];
+
+export const PlanetPositionDignity = {
+  exalted: "exalted",
+  own: "own",
+  debilitated: "debilitated",
+  neutral: "neutral",
+} as const;
+
 export interface PlanetPosition {
   name: string;
   longitude: number;
@@ -141,6 +145,10 @@ export interface PlanetPosition {
   isRetrograde: boolean;
   navamsaSign: string;
   dasamsaSign: string;
+  drekkanaSign?: string;
+  /** House (1-12, whole sign) counted from this chart's own lagna */
+  house?: number;
+  dignity?: PlanetPositionDignity;
 }
 
 export interface DashaLevel {
@@ -163,8 +171,71 @@ export interface VedicChart {
   planets: PlanetPosition[];
   currentDasha?: DashaTree;
   ayanamsa: number;
-  /** D1, D9, or D10 */
+  /** D1, D3, D9, or D10 */
   chartType: string;
+}
+
+export interface PrashnaFactor {
+  label: string;
+  effect: number;
+  detail: string;
+}
+
+export interface PrashnaChartUse {
+  chart: string;
+  purpose: string;
+  note: string;
+}
+
+export type PrashnaReadingSignal =
+  (typeof PrashnaReadingSignal)[keyof typeof PrashnaReadingSignal];
+
+export const PrashnaReadingSignal = {
+  favorable: "favorable",
+  challenging: "challenging",
+  neutral: "neutral",
+} as const;
+
+export type PrashnaReadingStability =
+  (typeof PrashnaReadingStability)[keyof typeof PrashnaReadingStability];
+
+export const PrashnaReadingStability = {
+  low: "low",
+  medium: "medium",
+  high: "high",
+} as const;
+
+export type PrashnaReadingRisk =
+  (typeof PrashnaReadingRisk)[keyof typeof PrashnaReadingRisk];
+
+export const PrashnaReadingRisk = {
+  low: "low",
+  medium: "medium",
+  high: "high",
+} as const;
+
+/**
+ * Prashna (horary) chart cast for the moment of the question, read for the question type
+ */
+export interface PrashnaReading {
+  castAt: string;
+  latitude?: number;
+  longitude?: number;
+  lagna: string;
+  lagnaLord: string;
+  moonSign: string;
+  moonNakshatra: string;
+  moonWaxing: boolean;
+  topic: string;
+  primaryHouse: number;
+  chartsUsed: PrashnaChartUse[];
+  factors: PrashnaFactor[];
+  score: number;
+  signal: PrashnaReadingSignal;
+  stability?: PrashnaReadingStability;
+  risk?: PrashnaReadingRisk;
+  dominantPlanet?: string;
+  summary: string;
 }
 
 export type AstroInfluenceStability =
@@ -205,6 +276,8 @@ export interface AstroResult {
   influence: AstroInfluence;
   interpretation: string;
   vedicD1?: VedicChart;
+  vedicD3?: VedicChart;
+  prashna?: PrashnaReading;
   vedicD9?: VedicChart;
   vedicD10?: VedicChart;
 }

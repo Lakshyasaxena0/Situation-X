@@ -5,12 +5,15 @@
 //   (geocentric, light-time corrected) — arc-second level accuracy
 // - Lahiri ayanamsa (standard for Vedic/Indian astrology)
 // - Vimshottari Dasha system (4 levels: Maha → Antar → Pratyantar → Sookshma)
-// - D1 (Rasi), D9 (Navamsha), D10 (Dashamsha) divisional charts
-// - System clock for date/time (no user input required)
+// - PRASHNA (horary) charts D1, D3, D9, D10 cast for the moment of the question
+//   (vedic.service.ts) and read per question type (prashna.service.ts)
+// - System clock for date/time; NO birth details are asked from the user
 // - Optional lat/lon (defaults to New Delhi if not provided)
 
 import type { IntentType } from "./ajit.service.js";
 import type { EmotionType } from "./manu.service.js";
+import { castPrashnaCharts, type VedicChart, type VedicDashaTree } from "./vedic.service.js";
+import { readPrashna, type PrashnaReading } from "./prashna.service.js";
 import {
   BODY_NAMES,
   julianDayFromDate,
@@ -65,6 +68,13 @@ export type AstroResult = {
   d1: DivisionalChart;
   d9: DivisionalChart;
   d10: DivisionalChart;
+  /** Prashna charts cast for the moment of the question (no birth data). */
+  vedicD1: VedicChart;
+  vedicD3: VedicChart;
+  vedicD9: VedicChart;
+  vedicD10: VedicChart;
+  /** Which house and which divisional charts were used for this question, and why. */
+  prashna: PrashnaReading;
   calculatedAt: string;
   location: { latitude: number; longitude: number };
 };
@@ -321,139 +331,17 @@ function computeVimshottariDasha(
 }
 
 // -----------------------------------------------------------------------
-// STEP 7: ASTROLOGICAL INFLUENCE EVALUATION
+// STEP 7: PRASHNA CHART + READING (replaces natal charts; no birth data needed)
 // -----------------------------------------------------------------------
 
-// Intent → ruling planet
-function mapIntentToPlanet(intent: IntentType): string {
-  switch (intent) {
-    case "relationship": return "Venus";
-    case "conflict":     return "Mars";
-    case "decision":     return "Mercury";
-    case "career":       return "Saturn";
-    case "health":       return "Sun";
-    default:             return "Moon";
-  }
-}
-
-// Classical exaltation/debilitation signs (0-indexed)
-const EXALTATION: Record<string, number> = {
-  Sun: 0, Moon: 1, Mercury: 5, Venus: 11,
-  Mars: 9, Jupiter: 3, Saturn: 6, Rahu: 1, Ketu: 7,
-};
-
-const DEBILITATION: Record<string, number> = {
-  Sun: 6, Moon: 7, Mercury: 11, Venus: 5,
-  Mars: 3, Jupiter: 9, Saturn: 0, Rahu: 7, Ketu: 1,
-};
-
-const BENEFICS = new Set(["Venus", "Jupiter", "Mercury", "Moon"]);
-const MALEFICS = new Set(["Saturn", "Mars", "Rahu", "Ketu", "Sun"]);
-
-function getPlanetStrength(
-  planet: string,
-  positions: Record<string, PlanetPosition>
-): "exalted" | "debilitated" | "neutral" {
-  const signIndex = positions[planet]?.signIndex ?? -1;
-  if (EXALTATION[planet] === signIndex) return "exalted";
-  if (DEBILITATION[planet] === signIndex) return "debilitated";
-  return "neutral";
-}
-
-function deriveInfluence(
-  intentPlanet: string,
-  positions: Record<string, PlanetPosition>,
-  dasha: VimshottariDasha
-): AstroInfluence {
-  const strength = getPlanetStrength(intentPlanet, positions);
-  const mahaDashaIsBenefic = BENEFICS.has(dasha.mahadasha.planet);
-  const antarDashaIsBenefic = BENEFICS.has(dasha.antardasha.planet);
-
-  let stability: "low" | "medium" | "high";
-  let risk: "low" | "medium" | "high";
-  let signal: "favorable" | "challenging" | "neutral";
-
-  if (strength === "exalted" && mahaDashaIsBenefic && antarDashaIsBenefic) {
-    stability = "high";
-    risk = "low";
-    signal = "favorable";
-  } else if (strength === "debilitated" || (!mahaDashaIsBenefic && !antarDashaIsBenefic)) {
-    stability = "low";
-    risk = "high";
-    signal = "challenging";
-  } else if (strength === "exalted" || mahaDashaIsBenefic) {
-    stability = "medium";
-    risk = "low";
-    signal = "favorable";
-  } else if (MALEFICS.has(dasha.mahadasha.planet)) {
-    // Reached only with a non-exalted, non-debilitated planet, a malefic
-    // mahadasha and a benefic antardasha.
-    stability = "low";
-    risk = "medium";
-    signal = "challenging";
-  } else {
-    stability = "medium";
-    risk = "medium";
-    signal = "neutral";
-  }
-
+function dashaToTree(dasha: VimshottariDasha): VedicDashaTree {
+  const lv = (d: DashaLevel) => ({ planet: d.planet, startDate: d.startDate, endDate: d.endDate, years: d.durationYears });
   return {
-    dominantPlanet: intentPlanet,
-    stability,
-    risk,
-    signal,
+    mahadasha: lv(dasha.mahadasha),
+    antardasha: lv(dasha.antardasha),
+    pratyantardasha: lv(dasha.pratyantardasha),
+    sookshmadasha: lv(dasha.sookshmadasha),
   };
-}
-
-// -----------------------------------------------------------------------
-// STEP 8: INTERPRETATION GENERATION
-// -----------------------------------------------------------------------
-
-function generateInterpretation(
-  influence: AstroInfluence,
-  dasha: VimshottariDasha,
-  positions: Record<string, PlanetPosition>
-): string {
-  const { dominantPlanet, signal, stability, risk } = influence;
-  const moon = positions["Moon"];
-  const planet = positions[dominantPlanet];
-  const dashaStr = `${dasha.mahadasha.planet} Mahadasha / ${dasha.antardasha.planet} Antardasha / ${dasha.pratyantardasha.planet} Pratyantardasha`;
-
-  const moonInfo = moon
-    ? `Moon is transiting ${moon.nakshatra} in ${moon.sign}`
-    : "Moon position unavailable";
-
-  const planetInfo = planet
-    ? `${dominantPlanet} is in ${planet.sign} (${
-        planet.signIndex === EXALTATION[dominantPlanet]
-          ? "exalted"
-          : planet.signIndex === DEBILITATION[dominantPlanet]
-          ? "debilitated"
-          : "neutral"
-      })`
-    : `${dominantPlanet} influence active`;
-
-  if (signal === "favorable") {
-    return (
-      `${planetInfo}. Current dasha: ${dashaStr}. ${moonInfo}. ` +
-      `All indicators align favorably — planetary support is strong. ` +
-      `Stability: ${stability}, Risk: ${risk}. This is a constructive window for decisive action.`
-    );
-  }
-
-  if (signal === "challenging") {
-    return (
-      `${planetInfo}. Current dasha: ${dashaStr}. ${moonInfo}. ` +
-      `Planetary friction is elevated at this time. ` +
-      `Stability: ${stability}, Risk: ${risk}. Avoid impulsive decisions. Allow time for clarity before acting.`
-    );
-  }
-
-  return (
-    `${planetInfo}. Current dasha: ${dashaStr}. ${moonInfo}. ` +
-    `Planetary energies are mixed but manageable. ` +
-    `Stability: ${stability}, Risk: ${risk}. Measured, deliberate action will yield the best outcomes.`
-  );
 }
 
 // -----------------------------------------------------------------------
@@ -463,35 +351,39 @@ function generateInterpretation(
 export function analyzeAstro(
   intent: IntentType,
   _emotion: EmotionType,
-  options?: { latitude?: number; longitude?: number }
+  options?: { latitude?: number; longitude?: number; at?: Date }
 ): AstroResult {
-  const now = new Date(); // System clock — no user input needed
+  const now = options?.at ?? new Date(); // The sky at the moment of the question
 
   const latitude = options?.latitude ?? 28.6139;   // Default: New Delhi
   const longitude = options?.longitude ?? 77.2090;
 
-  // Convert to Julian Day (UT)
   const jd = julianDayFromDate(now);
 
-  // Compute all 9 planetary positions (sidereal, Lahiri ayanamsa)
+  // Current sidereal positions (Lahiri) with nakshatras
   const positions = computePlanetPositions(jd);
 
-  // Build divisional charts
+  // Simple sign-only divisional views (kept for backward compatibility)
   const d1 = getD1(positions);
   const d9 = getD9(positions);
   const d10 = getD10(positions);
 
-  // Vimshottari Dasha — 4 levels based on current Moon nakshatra
+  // Vimshottari Dasha running from the Moon at this moment
   const dasha = computeVimshottariDasha(positions["Moon"].longitude, now);
 
-  // Map intent to its ruling planet
-  const intentPlanet = mapIntentToPlanet(intent);
+  // Prashna: cast D1, D3, D9, D10 for this moment and read the ones relevant to the question
+  const sky = castPrashnaCharts(now, latitude, longitude);
+  const prashna = readPrashna(intent, sky);
 
-  // Evaluate planetary influence
-  const influence = deriveInfluence(intentPlanet, positions, dasha);
+  const influence: AstroInfluence = {
+    dominantPlanet: prashna.dominantPlanet,
+    stability: prashna.stability,
+    risk: prashna.risk,
+    signal: prashna.signal,
+  };
 
-  // Build human-readable interpretation
-  const interpretation = generateInterpretation(influence, dasha, positions);
+  const dashaStr = `${dasha.mahadasha.planet} / ${dasha.antardasha.planet} / ${dasha.pratyantardasha.planet}`;
+  const interpretation = `${prashna.summary} Moon-based dasha now: ${dashaStr}.`;
 
   return {
     influence,
@@ -501,6 +393,11 @@ export function analyzeAstro(
     d1,
     d9,
     d10,
+    vedicD1: { ...sky.charts.d1, currentDasha: dashaToTree(dasha) },
+    vedicD3: sky.charts.d3,
+    vedicD9: sky.charts.d9,
+    vedicD10: sky.charts.d10,
+    prashna,
     calculatedAt: now.toISOString(),
     location: { latitude, longitude },
   };

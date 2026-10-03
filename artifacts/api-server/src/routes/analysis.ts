@@ -11,7 +11,6 @@ import { runEngine } from "../services/engine.service.js";
 import { currentUserId } from "../middlewares/requireUser.js";
 import { getCalibration } from "../services/calibration.service.js";
 import { synthesize } from "../services/synthesis.service.js";
-import { BirthDataError, parseBirthInput } from "../services/vedic.service.js";
 
 const MAX_SITUATION_LENGTH = 2000; // matches the UI textarea limit
 const MAX_PAGE_SIZE = 100;
@@ -25,7 +24,7 @@ router.post("/analysis/analyze", async (req, res) => {
     return;
   }
 
-  const { birthDate, birthTime, latitude, longitude } = parseResult.data;
+  const { latitude, longitude } = parseResult.data;
   const situation = parseResult.data.situation.trim();
 
   if (situation.length < 10) {
@@ -37,35 +36,24 @@ router.post("/analysis/analyze", async (req, res) => {
     return;
   }
 
-  // Birth data is optional, but when given it must be usable (bad values used to
-  // produce NaN charts or be silently dropped).
+  // The Prashna chart is cast for the moment of the question, so no birth data is needed.
+  // Location is optional (default New Delhi) and only refines the ascendant.
   if ((latitude === undefined) !== (longitude === undefined)) {
-    res.status(400).json({ error: "invalid_birth_data", message: "Provide both latitude and longitude, or neither." });
+    res.status(400).json({ error: "invalid_location", message: "Provide both latitude and longitude, or neither." });
     return;
   }
-  if (birthDate) {
-    try {
-      parseBirthInput(birthDate, birthTime || undefined);
-    } catch (err) {
-      if (err instanceof BirthDataError) {
-        res.status(400).json({ error: "invalid_birth_data", message: err.message });
-        return;
-      }
-      throw err;
-    }
-    if (latitude !== undefined && (!Number.isFinite(latitude) || latitude < -90 || latitude > 90)) {
-      res.status(400).json({ error: "invalid_birth_data", message: "latitude must be between -90 and 90." });
-      return;
-    }
-    if (longitude !== undefined && (!Number.isFinite(longitude) || longitude < -180 || longitude > 180)) {
-      res.status(400).json({ error: "invalid_birth_data", message: "longitude must be between -180 and 180." });
-      return;
-    }
+  if (latitude !== undefined && (!Number.isFinite(latitude) || latitude < -90 || latitude > 90)) {
+    res.status(400).json({ error: "invalid_location", message: "latitude must be between -90 and 90." });
+    return;
+  }
+  if (longitude !== undefined && (!Number.isFinite(longitude) || longitude < -180 || longitude > 180)) {
+    res.status(400).json({ error: "invalid_location", message: "longitude must be between -180 and 180." });
+    return;
   }
 
   try {
     // Step 1: Run the local engine pipeline (AJIT → MANU → Ethical Filter → ASTRO → SIVI)
-    const engineResult = runEngine(situation, birthDate || undefined, birthTime || undefined, latitude, longitude);
+    const engineResult = runEngine(situation, latitude, longitude);
 
     // Step 2: AI and astrology work together on the final answer. The AI sees every module's
     // output plus the dasha/transits, and past follow-up accuracy tempers the result.

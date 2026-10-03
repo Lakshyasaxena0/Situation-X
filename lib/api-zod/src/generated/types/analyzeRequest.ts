@@ -9,14 +9,8 @@
 export interface AnalyzeRequest {
   /** The situation to analyze (min 10 characters) */
   situation: string;
-  /** Optional birth date YYYY-MM-DD for Vedic chart */
-  birthDate?: string;
-  /** Optional birth time HH:MM */
-  birthTime?: string;
-  /** Optional birth place */
-  birthPlace?: string;
-  /** Optional latitude for birth place */
+  /** Optional latitude of where the question is asked (default New Delhi). Only refines the Prashna ascendant; no birth details are needed. */
   latitude?: number;
-  /** Optional longitude for birth place */
+  /** Optional longitude of where the question is asked (default New Delhi) */
   longitude?: number;
 }

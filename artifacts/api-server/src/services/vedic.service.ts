@@ -1,10 +1,21 @@
-// Vedic Astrology Calculator — D1, D9, D10 charts + Vimshottari Dasha (4 levels)
-// Planetary positions and the Lahiri ayanamsa come from ephemeris.service.ts
-// (VSOP87 via `astronomia`); this module builds natal charts from them.
+// Vedic chart builder for PRASHNA (horary) astrology.
+//
+// The user never has to give birth details. The chart is cast for the exact moment the
+// question is asked (and the place, default New Delhi), which is how Prashna works:
+// the sky at the time of the question answers the question.
+//
+// Four charts are cast from the same sky:
+//   D1  Rashi      - the main chart: lagna, Moon, houses (the overall promise of the question)
+//   D3  Drekkana   - courage, initiative, effort, siblings/peers
+//   D9  Navamsa    - inner strength, partnerships, the final fruit of a planet
+//   D10 Dasamsa    - career, profession, status, achievement
+// prashna.service.ts decides which of them matter for which kind of question.
+//
+// Positions and the Lahiri ayanamsa come from ephemeris.service.ts (VSOP87 via `astronomia`).
 
 import {
   BODY_NAMES,
-  estimateUtcOffsetHours,
+  type BodyName,
   isRetrograde,
   julianDayFromDate,
   lahiriAyanamsa,
@@ -13,58 +24,63 @@ import {
   tropicalAscendant,
 } from "./ephemeris.service.js";
 
-const RASHI_NAMES = ["Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo", "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces"];
+export const RASHI_NAMES = ["Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo", "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces"];
+
+/** Ruler of each sign, Aries..Pisces (classical Vedic rulers; the nodes rule no sign). */
+export const SIGN_RULERS = ["Mars", "Venus", "Mercury", "Moon", "Sun", "Mercury", "Venus", "Mars", "Jupiter", "Saturn", "Saturn", "Jupiter"];
+
 const NAVAMSA_RASHI_START: Record<string, number> = {
   Aries: 0, Taurus: 9, Gemini: 6, Cancer: 3, Leo: 0, Virgo: 9, Libra: 6, Scorpio: 3, Sagittarius: 0, Capricorn: 9, Aquarius: 6, Pisces: 3,
 };
 
-// Vimshottari dasha sequence and durations (years)
-const DASHA_SEQUENCE = ["Ketu", "Venus", "Sun", "Moon", "Mars", "Rahu", "Jupiter", "Saturn", "Mercury"];
-const DASHA_YEARS: Record<string, number> = {
-  Ketu: 7, Venus: 20, Sun: 6, Moon: 10, Mars: 7, Rahu: 18, Jupiter: 16, Saturn: 19, Mercury: 17,
+// Sign indices (0 = Aries)
+const EXALTATION: Record<string, number> = { Sun: 0, Moon: 1, Mars: 9, Mercury: 5, Jupiter: 3, Venus: 11, Saturn: 6, Rahu: 1, Ketu: 7 };
+const DEBILITATION: Record<string, number> = { Sun: 6, Moon: 7, Mars: 3, Mercury: 11, Jupiter: 9, Venus: 5, Saturn: 0, Rahu: 7, Ketu: 1 };
+const OWN_SIGNS: Record<string, number[]> = {
+  Sun: [4], Moon: [3], Mars: [0, 7], Mercury: [2, 5], Jupiter: [8, 11], Venus: [1, 6], Saturn: [9, 10], Rahu: [], Ketu: [],
 };
-const TOTAL_DASHA_YEARS = 120;
-const MS_PER_YEAR = 365.25 * 24 * 60 * 60 * 1000;
-const NAKSHATRA_SPAN = 360 / 27; // 13.333...°
 
-/** Thrown for malformed or out-of-range birth data (maps to HTTP 400). */
-export class BirthDataError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "BirthDataError";
-  }
+export type Dignity = "exalted" | "own" | "debilitated" | "neutral";
+
+export function dignityOf(planet: string, signIndex: number): Dignity {
+  if (EXALTATION[planet] === signIndex) return "exalted";
+  if (DEBILITATION[planet] === signIndex) return "debilitated";
+  if (OWN_SIGNS[planet]?.includes(signIndex)) return "own";
+  return "neutral";
 }
 
 function getSign(longitude: number): string {
   return RASHI_NAMES[Math.floor(longitude / 30)];
 }
 
-function getSignIndex(longitude: number): number {
-  return Math.floor(longitude / 30);
-}
-
 function getDegreeInSign(longitude: number): number {
   return longitude % 30;
 }
 
-// D9 (Navamsa): Each sign has 9 navamsas of 3°20' each
-function getNavamsa(longitude: number): string {
+// D3 (Drekkana): each sign has 3 parts of 10 degrees: the 1st part is the sign itself,
+// the 2nd is its 5th sign, the 3rd is its 9th sign.
+export function getDrekkana(longitude: number): string {
   const signIndex = Math.floor(longitude / 30);
-  const posInSign = longitude % 30;
-  const navamsaIndex = Math.floor(posInSign / (10 / 3)); // 3.333... degrees each
-  const signName = RASHI_NAMES[signIndex];
-  const startNavamsa = NAVAMSA_RASHI_START[signName] ?? 0;
-  const navamsaRashi = (startNavamsa + navamsaIndex) % 12;
-  return RASHI_NAMES[navamsaRashi];
+  const part = Math.min(2, Math.floor((longitude % 30) / 10));
+  return RASHI_NAMES[(signIndex + part * 4) % 12];
 }
 
-// D10 (Dasamsa): Each sign has 10 divisions of 3° each
-function getDasamsa(longitude: number): string {
+// D9 (Navamsa): each sign has 9 navamsas of 3 deg 20 min. Movable signs start from
+// themselves, fixed from their 9th, dual from their 5th.
+export function getNavamsa(longitude: number): string {
   const signIndex = Math.floor(longitude / 30);
   const posInSign = longitude % 30;
-  const dasamsaIndex = Math.floor(posInSign / 3); // 3 degrees each
-  // Odd signs: start from same sign. Even signs: start from 9th sign.
-  const isOddSign = signIndex % 2 === 0; // 0-indexed, Aries=0 is odd (1st)
+  const navamsaIndex = Math.min(8, Math.floor(posInSign / (10 / 3)));
+  const startNavamsa = NAVAMSA_RASHI_START[RASHI_NAMES[signIndex]] ?? 0;
+  return RASHI_NAMES[(startNavamsa + navamsaIndex) % 12];
+}
+
+// D10 (Dasamsa): each sign has 10 divisions of 3 degrees. Odd signs start from
+// themselves, even signs from their 9th.
+export function getDasamsa(longitude: number): string {
+  const signIndex = Math.floor(longitude / 30);
+  const dasamsaIndex = Math.min(9, Math.floor((longitude % 30) / 3));
+  const isOddSign = signIndex % 2 === 0; // Aries (index 0) is the 1st, an odd sign
   const startSign = isOddSign ? signIndex : (signIndex + 8) % 12;
   return RASHI_NAMES[(startSign + dasamsaIndex) % 12];
 }
@@ -77,74 +93,6 @@ export type VedicDashaTree = {
   sookshmadasha?: DashaLevel;
 };
 
-type Period = { planet: string; startMs: number; endMs: number; years: number };
-
-function toLevel(p: Period): DashaLevel {
-  return {
-    planet: p.planet,
-    startDate: new Date(p.startMs).toISOString().split("T")[0],
-    endDate: new Date(p.endMs).toISOString().split("T")[0],
-    years: p.years,
-  };
-}
-
-/**
- * Finds the sub-period (antar / pratyantar / sookshma) of `parent` that
- * contains `atMs`. Sub-periods run in Vimshottari order starting with the
- * parent's own lord, each lasting parentYears * (lordYears / 120).
- */
-function findSubPeriod(parent: Period, atMs: number): Period {
-  const parentIndex = DASHA_SEQUENCE.indexOf(parent.planet);
-  let start = parent.startMs;
-  let last: Period = parent;
-  for (let i = 0; i < 9; i++) {
-    const planet = DASHA_SEQUENCE[(parentIndex + i) % 9];
-    const years = (parent.years * DASHA_YEARS[planet]) / TOTAL_DASHA_YEARS;
-    const end = start + years * MS_PER_YEAR;
-    last = { planet, startMs: start, endMs: end, years };
-    if (atMs < end) return last;
-    start = end;
-  }
-  return last; // floating-point edge: atMs is at the very end of the parent
-}
-
-/**
- * Vimshottari dasha running at `nowMs` for a person born at `birthMs` with the
- * natal Moon at `moonLongitude` (sidereal). The birth mahadasha is only the
- * first period of a 120-year cycle; later mahadashas are walked forward until
- * the one containing `nowMs` is found.
- */
-function calculateDasha(moonLongitude: number, birthMs: number, nowMs: number): VedicDashaTree {
-  const nakshatraIndex = Math.floor(moonLongitude / NAKSHATRA_SPAN);
-  const lordIndex = nakshatraIndex % 9;
-  const fractionElapsed = (moonLongitude - nakshatraIndex * NAKSHATRA_SPAN) / NAKSHATRA_SPAN;
-
-  const birthLord = DASHA_SEQUENCE[lordIndex];
-  let start = birthMs - fractionElapsed * DASHA_YEARS[birthLord] * MS_PER_YEAR;
-  let index = lordIndex;
-  let maha: Period = { planet: birthLord, startMs: start, endMs: start + DASHA_YEARS[birthLord] * MS_PER_YEAR, years: DASHA_YEARS[birthLord] };
-
-  const at = Math.max(nowMs, birthMs);
-  // 120-year cycle; the guard also covers absurdly old dates.
-  for (let guard = 0; guard < 40 && at >= maha.endMs; guard++) {
-    start = maha.endMs;
-    index += 1;
-    const planet = DASHA_SEQUENCE[index % 9];
-    maha = { planet, startMs: start, endMs: start + DASHA_YEARS[planet] * MS_PER_YEAR, years: DASHA_YEARS[planet] };
-  }
-
-  const antar = findSubPeriod(maha, at);
-  const praty = findSubPeriod(antar, at);
-  const sookshma = findSubPeriod(praty, at);
-
-  return {
-    mahadasha: toLevel(maha),
-    antardasha: toLevel(antar),
-    pratyantardasha: toLevel(praty),
-    sookshmadasha: toLevel(sookshma),
-  };
-}
-
 export type PlanetPosition = {
   name: string;
   longitude: number;
@@ -154,6 +102,11 @@ export type PlanetPosition = {
   isRetrograde: boolean;
   navamsaSign: string;
   dasamsaSign: string;
+  drekkanaSign: string;
+  /** House (1-12, whole-sign) counted from THIS chart's own lagna. */
+  house: number;
+  /** Dignity of the planet in this chart's sign. */
+  dignity: Dignity;
 };
 
 export type VedicChart = {
@@ -165,131 +118,121 @@ export type VedicChart = {
   chartType: string;
 };
 
-export type VedicChartSet = { d1: VedicChart; d9: VedicChart; d10: VedicChart };
+export type VedicChartSet = { d1: VedicChart; d3: VedicChart; d9: VedicChart; d10: VedicChart };
 
-const DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
-const TIME_RE = /^([01]?\d|2[0-3]):([0-5]\d)(?::[0-5]\d)?$/;
+export type PrashnaSky = {
+  charts: VedicChartSet;
+  castAt: Date;
+  latitude: number;
+  longitude: number;
+  /** True when the Moon is between new and full (waxing). */
+  moonWaxing: boolean;
+  /** Planets too close to the Sun to give their results freely. */
+  combust: string[];
+};
 
-/** Validates and parses birth date (YYYY-MM-DD) and optional time (HH:MM). */
-export function parseBirthInput(birthDate: string, birthTime?: string): { year: number; month: number; day: number; hour: number; minute: number } {
-  const dm = DATE_RE.exec(birthDate);
-  if (!dm) throw new BirthDataError("birthDate must be in YYYY-MM-DD format.");
-  const year = Number(dm[1]);
-  const month = Number(dm[2]);
-  const day = Number(dm[3]);
-
-  const probe = new Date(Date.UTC(year, month - 1, day));
-  if (probe.getUTCFullYear() !== year || probe.getUTCMonth() !== month - 1 || probe.getUTCDate() !== day) {
-    throw new BirthDataError("birthDate is not a valid calendar date.");
+export class ChartInputError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ChartInputError";
   }
-  if (year < 1800) throw new BirthDataError("birthDate must be 1800 or later.");
-  if (probe.getTime() > Date.now() + 24 * 60 * 60 * 1000) throw new BirthDataError("birthDate cannot be in the future.");
-
-  // No time given: use local noon (the least-wrong guess; the ascendant is then only indicative).
-  let hour = 12;
-  let minute = 0;
-  if (birthTime) {
-    const tm = TIME_RE.exec(birthTime);
-    if (!tm) throw new BirthDataError("birthTime must be in HH:MM (24-hour) format.");
-    hour = Number(tm[1]);
-    minute = Number(tm[2]);
-  }
-  return { year, month, day, hour, minute };
 }
 
-export function calculateVedicCharts(
-  birthDate: string,
-  birthTime?: string,
-  latitude: number = 28.6139, // Default: New Delhi
-  longitude: number = 77.2090,
-): VedicChartSet {
-  const { year, month, day, hour, minute } = parseBirthInput(birthDate, birthTime);
-  if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90) {
-    throw new BirthDataError("latitude must be between -90 and 90.");
-  }
-  if (!Number.isFinite(longitude) || longitude < -180 || longitude > 180) {
-    throw new BirthDataError("longitude must be between -180 and 180.");
-  }
+/** Orb in degrees within which a planet is considered combust (asta). */
+const COMBUST_ORB: Record<string, number> = { Moon: 12, Mars: 17, Mercury: 14, Jupiter: 11, Venus: 10, Saturn: 15 };
 
-  // Birth time is civil local time; convert to UTC with a best-effort zone offset.
-  const utcOffsetHours = estimateUtcOffsetHours(latitude, longitude);
-  const birthMs = Date.UTC(year, month - 1, day, hour, minute) - utcOffsetHours * 3600 * 1000;
-  const jd = julianDayFromDate(new Date(birthMs));
-  const ayanamsa = lahiriAyanamsa(jd);
+const DEFAULT_LATITUDE = 28.6139;   // New Delhi
+const DEFAULT_LONGITUDE = 77.209;
 
-  const siderealPositions = siderealLongitudes(jd);
-  const ascendantSidereal = normalizeDegrees(tropicalAscendant(jd, latitude, longitude) - ayanamsa);
+function angularSeparation(a: number, b: number): number {
+  const d = Math.abs(normalizeDegrees(a) - normalizeDegrees(b)) % 360;
+  return d > 180 ? 360 - d : d;
+}
 
-  // Build planet list for D1
-  const planetList: PlanetPosition[] = BODY_NAMES.map((name) => {
-    const lon = siderealPositions[name];
+type DivisionFn = (lon: number) => string;
+
+/** Builds one chart. `signOf` maps a sidereal longitude to the sign it falls in for this chart. */
+function buildChart(
+  chartType: string,
+  signOf: DivisionFn,
+  rashiLongitudes: Record<string, number>,
+  ascendantSidereal: number,
+  retro: Record<string, boolean>,
+  ayanamsa: number,
+): VedicChart {
+  const ascSign = signOf(ascendantSidereal);
+  const ascIndex = RASHI_NAMES.indexOf(ascSign);
+  const planets: PlanetPosition[] = BODY_NAMES.map((name) => {
+    const lon = rashiLongitudes[name];
+    const sign = signOf(lon);
+    const signIndex = RASHI_NAMES.indexOf(sign);
     return {
       name,
-      longitude: lon,
-      sign: getSign(lon),
-      signIndex: getSignIndex(lon),
+      // D1: the real sidereal longitude. Divisional charts: the exact degree inside a divisional
+      // sign has no meaning, so keep the planet's degree-in-sign within its divisional sign.
+      longitude: chartType === "D1"
+        ? parseFloat(lon.toFixed(4)) % 360
+        : signIndex * 30 + Math.min(29.99, getDegreeInSign(lon)),
+      sign,
+      signIndex,
       degree: parseFloat(getDegreeInSign(lon).toFixed(2)),
-      isRetrograde: isRetrograde(name, jd),
+      isRetrograde: retro[name],
       navamsaSign: getNavamsa(lon),
       dasamsaSign: getDasamsa(lon),
+      drekkanaSign: getDrekkana(lon),
+      house: ((signIndex - ascIndex + 12) % 12) + 1,
+      dignity: dignityOf(name, signIndex),
     };
   });
-
-  const moonLon = siderealPositions.Moon;
-  const dasha = calculateDasha(moonLon, birthMs, Date.now());
-
-  const d1: VedicChart = {
-    ascendant: getSign(ascendantSidereal),
+  return {
+    ascendant: ascSign,
     ascendantDegree: parseFloat(getDegreeInSign(ascendantSidereal).toFixed(2)),
-    planets: planetList,
-    currentDasha: dasha,
+    planets,
     ayanamsa: parseFloat(ayanamsa.toFixed(4)),
-    chartType: "D1",
+    chartType,
   };
+}
 
-  // D9 — Navamsa chart: re-map each planet's longitude to its navamsa position
-  const d9Planets = planetList.map((p) => {
-    const navamsaSignIndex = RASHI_NAMES.indexOf(p.navamsaSign);
-    const navamsaLon = navamsaSignIndex * 30 + p.degree;
-    return {
-      ...p,
-      longitude: navamsaLon,
-      sign: p.navamsaSign,
-      signIndex: navamsaSignIndex,
-      navamsaSign: getNavamsa(navamsaLon),
-      dasamsaSign: getDasamsa(navamsaLon),
-    };
-  });
-  const d9AscNavamsaIndex = RASHI_NAMES.indexOf(getNavamsa(ascendantSidereal));
-  const d9: VedicChart = {
-    ascendant: getNavamsa(ascendantSidereal),
-    ascendantDegree: parseFloat((d9AscNavamsaIndex * 30 + getDegreeInSign(ascendantSidereal)).toFixed(2)),
-    planets: d9Planets,
-    ayanamsa: parseFloat(ayanamsa.toFixed(4)),
-    chartType: "D9",
+/**
+ * Casts the Prashna charts for the moment `at` (default: now) at a place
+ * (default: New Delhi). No birth data is involved.
+ */
+export function castPrashnaCharts(
+  at: Date = new Date(),
+  latitude: number = DEFAULT_LATITUDE,
+  longitude: number = DEFAULT_LONGITUDE,
+): PrashnaSky {
+  if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90) {
+    throw new ChartInputError("latitude must be between -90 and 90.");
+  }
+  if (!Number.isFinite(longitude) || longitude < -180 || longitude > 180) {
+    throw new ChartInputError("longitude must be between -180 and 180.");
+  }
+
+  const jd = julianDayFromDate(at);
+  const ayanamsa = lahiriAyanamsa(jd);
+  const sidereal = siderealLongitudes(jd);
+  const ascendantSidereal = normalizeDegrees(tropicalAscendant(jd, latitude, longitude) - ayanamsa);
+
+  const retro: Record<string, boolean> = {};
+  for (const name of BODY_NAMES) retro[name] = isRetrograde(name, jd);
+
+  const d1 = buildChart("D1", getSign, sidereal, ascendantSidereal, retro, ayanamsa);
+  const d3 = buildChart("D3", getDrekkana, sidereal, ascendantSidereal, retro, ayanamsa);
+  const d9 = buildChart("D9", getNavamsa, sidereal, ascendantSidereal, retro, ayanamsa);
+  const d10 = buildChart("D10", getDasamsa, sidereal, ascendantSidereal, retro, ayanamsa);
+
+  const elongation = normalizeDegrees(sidereal.Moon - sidereal.Sun);
+  const combust = Object.entries(COMBUST_ORB)
+    .filter(([name, orb]) => name !== "Moon" && angularSeparation(sidereal[name as BodyName], sidereal.Sun) <= orb)
+    .map(([name]) => name);
+
+  return {
+    charts: { d1, d3, d9, d10 },
+    castAt: at,
+    latitude,
+    longitude,
+    moonWaxing: elongation < 180,
+    combust,
   };
-
-  // D10 — Dasamsa chart
-  const d10Planets = planetList.map((p) => {
-    const dasamsaSignIndex = RASHI_NAMES.indexOf(p.dasamsaSign);
-    const dasamsaLon = dasamsaSignIndex * 30 + p.degree;
-    return {
-      ...p,
-      longitude: dasamsaLon,
-      sign: p.dasamsaSign,
-      signIndex: dasamsaSignIndex,
-      navamsaSign: getNavamsa(dasamsaLon),
-      dasamsaSign: getDasamsa(dasamsaLon),
-    };
-  });
-  const d10AscDasamsaIndex = RASHI_NAMES.indexOf(getDasamsa(ascendantSidereal));
-  const d10: VedicChart = {
-    ascendant: getDasamsa(ascendantSidereal),
-    ascendantDegree: parseFloat((d10AscDasamsaIndex * 30 + getDegreeInSign(ascendantSidereal)).toFixed(2)),
-    planets: d10Planets,
-    ayanamsa: parseFloat(ayanamsa.toFixed(4)),
-    chartType: "D10",
-  };
-
-  return { d1, d9, d10 };
 }

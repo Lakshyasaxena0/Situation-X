@@ -14,6 +14,6 @@ export interface VedicChart {
   planets: PlanetPosition[];
   currentDasha?: DashaTree;
   ayanamsa: number;
-  /** D1, D9, or D10 */
+  /** D1, D3, D9, or D10 */
   chartType: string;
 }

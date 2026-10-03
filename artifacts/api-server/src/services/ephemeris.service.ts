@@ -155,15 +155,3 @@ export function tropicalAscendant(jd: number, latitude: number, longitude: numbe
   const x = -(Math.sin(lst) * Math.cos(eps) + Math.tan(phi) * Math.sin(eps));
   return normalizeDegrees(Math.atan2(y, x) * R2D);
 }
-
-/**
- * Best-effort UTC offset (hours) for a birth location, since the API receives
- * only coordinates. India (including the default New Delhi) uses IST (+5:30)
- * nationwide; elsewhere the nearest whole-hour zone for the longitude is used.
- * This is an approximation (no DST / political time zones).
- */
-export function estimateUtcOffsetHours(latitude: number, longitude: number): number {
-  const inIndia = latitude >= 6 && latitude <= 37.5 && longitude >= 68 && longitude <= 97.5;
-  if (inIndia) return 5.5;
-  return Math.round(longitude / 15);
-}
