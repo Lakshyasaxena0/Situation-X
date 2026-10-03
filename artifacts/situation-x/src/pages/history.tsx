@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   useGetAnalysisHistory,
   useDeleteAnalysis,
@@ -36,7 +36,7 @@ export default function History() {
   const [page, setPage] = useState(0);
   const limit = 15;
 
-  const { data, isLoading } = useGetAnalysisHistory(
+  const { data, isLoading, isError } = useGetAnalysisHistory(
     { limit, offset: page * limit },
     { query: { queryKey: getGetAnalysisHistoryQueryKey({ limit, offset: page * limit }) } }
   );
@@ -59,6 +59,14 @@ export default function History() {
   const items = data?.items ?? [];
   const total = data?.total ?? 0;
 
+  // Deleting the last item on the last page would otherwise leave us on an
+  // empty page that still reports a non-zero total.
+  useEffect(() => {
+    if (data && page > 0 && page * limit >= data.total) {
+      setPage(Math.max(0, Math.ceil(data.total / limit) - 1));
+    }
+  }, [data, page]);
+
   return (
     <Shell>
       <div className="max-w-3xl mx-auto px-4 py-8">
@@ -75,7 +83,14 @@ export default function History() {
           </div>
         )}
 
-        {!isLoading && items.length === 0 && (
+        {isError && (
+          <div className="text-center py-16 text-muted-foreground">
+            <p className="text-lg font-medium">Couldn&apos;t load your history.</p>
+            <p className="text-sm mt-1">Please refresh the page or sign in again.</p>
+          </div>
+        )}
+
+        {!isLoading && !isError && items.length === 0 && (
           <div className="text-center py-16 text-muted-foreground">
             <p className="text-lg font-medium">No analyses yet.</p>
             <p className="text-sm mt-1">Run your first analysis from the Oracle page.</p>
@@ -103,9 +118,18 @@ export default function History() {
                   animate={{ opacity: 1, y: 0 }}
                   className="bg-card border border-card-border rounded-lg overflow-hidden"
                 >
-                  <button
-                    className="w-full text-left px-4 py-4 flex items-start gap-3 hover:bg-muted/30 transition-colors"
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    aria-expanded={isExpanded}
+                    className="w-full text-left px-4 py-4 flex items-start gap-3 hover:bg-muted/30 transition-colors cursor-pointer"
                     onClick={() => setExpandedId(isExpanded ? null : item.id)}
+                    onKeyDown={(e) => {
+                      if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) {
+                        e.preventDefault();
+                        setExpandedId(isExpanded ? null : item.id);
+                      }
+                    }}
                   >
                     <div className="flex-1 min-w-0">
                       <p className="text-sm text-foreground truncate font-medium">{item.situation}</p>
@@ -125,6 +149,8 @@ export default function History() {
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       <button
+                        type="button"
+                        aria-label="Delete analysis"
                         onClick={(e) => handleDelete(item.id, e)}
                         className="p-1.5 rounded hover:bg-destructive/20 text-muted-foreground hover:text-red-400 transition-colors"
                       >
@@ -132,7 +158,7 @@ export default function History() {
                       </button>
                       {isExpanded ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
                     </div>
-                  </button>
+                  </div>
 
                   {isExpanded && (
                     <div className="px-4 pb-4 border-t border-border">

@@ -71,6 +71,9 @@ export default function Feedback() {
         setComment("");
         toast({ title: "Feedback submitted", description: "Thank you for your feedback." });
       },
+      onError: () => {
+        toast({ title: "Couldn't submit feedback", description: "Please try again.", variant: "destructive" });
+      },
     },
   });
 
@@ -78,6 +81,9 @@ export default function Feedback() {
     mutation: {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: getGetFeedbackListQueryKey() });
+      },
+      onError: () => {
+        toast({ title: "Couldn't delete feedback", description: "Please try again.", variant: "destructive" });
       },
     },
   });
@@ -255,6 +261,8 @@ export default function Feedback() {
                   </p>
                 </div>
                 <button
+                  type="button"
+                  aria-label="Delete feedback"
                   onClick={() => deleteFeedback.mutate({ id: Number(f.id) })}
                   className="p-1.5 rounded hover:bg-destructive/20 text-muted-foreground hover:text-red-400 transition-colors shrink-0"
                 >
