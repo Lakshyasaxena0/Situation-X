@@ -1,0 +1,71 @@
+import express, { Request, Response, NextFunction } from "express";
+import cors from "cors";
+import { rateLimit } from "express-rate-limit";
+import dotenv from "dotenv";
+import { env } from "./config/env";
+import { testConnection } from "./config/db";
+import { logger } from "./utils/logger";
+import analyzeRoutes from "./routes/analyze.route";
+import profileRoutes from "./routes/profile.route";
+import historyRoutes from "./routes/history.route";
+import authRoutes from "./routes/auth.route";
+
+dotenv.config();
+
+const app = express();
+
+// Render terminates TLS at a proxy. Without this, req.ip is the proxy's address,
+// so the rate limiter below counts *all* users together (60 requests / 15 min total).
+app.set("trust proxy", 1);
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      if (!origin || env.ALLOWED_ORIGINS.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
+    credentials: true,
+  })
+);
+
+app.use(express.json({ limit: "10kb" }));
+
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 60,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+});
+
+app.use(limiter as any);
+
+app.use("/api/analyze", analyzeRoutes);
+app.use("/api/profile", profileRoutes);
+app.use("/api/history", historyRoutes);
+app.use("/api/auth", authRoutes);
+
+app.get("/api/healthz", (_req: Request, res: Response) => {
+  res.status(200).json({ status: "ok", timestamp: new Date().toISOString() });
+});
+
+app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+  logger.error("Unhandled error", { error: err.message });
+  res.status(500).json({ error: "Internal server error" });
+});
+
+async function startServer() {
+  try {
+    await testConnection();
+    app.listen(env.PORT, () => {
+      logger.info(`Server running on port ${env.PORT}`);
+    });
+  } catch (error: any) {
+    logger.error("Server startup failed", { error: error.message });
+    process.exit(1);
+  }
+}
+
+startServer();

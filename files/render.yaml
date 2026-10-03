@@ -1,0 +1,28 @@
+# render.yaml
+services:
+  - type: web
+    name: situation-x-backend
+    env: node
+    plan: free
+    buildCommand: pnpm --filter situation-x-backend run build
+    startCommand: pnpm --filter situation-x-backend run start
+    envVars:
+      - key: PORT
+        value: 4000
+      - key: NODE_ENV
+        value: production
+      # Secrets are not stored in this file. `sync: false` makes Render prompt for a
+      # value when the service is created; JWT_SECRET is generated randomly.
+      # (A committed placeholder such as "your_jwt_secret_here" passes the backend's
+      # length check, so a forgotten edit would let anyone forge login tokens.)
+      - key: JWT_SECRET
+        generateValue: true
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
+      - key: GROQ_API_KEY # required by backend/src/config/env.ts; was missing here
+        sync: false
+      - key: ALLOWED_ORIGINS # e.g. https://your-site.netlify.app
+        sync: false
+    healthCheckPath: /api/healthz
