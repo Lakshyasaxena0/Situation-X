@@ -47,3 +47,6 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+# Generated at build time by artifacts/mockup-sandbox/mockupPreviewPlugin.ts
+artifacts/mockup-sandbox/src/.generated/
