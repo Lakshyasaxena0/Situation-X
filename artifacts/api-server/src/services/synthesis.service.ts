@@ -1,4 +1,5 @@
 import type { EngineResponse } from "./engine.service.js";
+import { groqConfigured, groqJsonCompletion } from "../lib/groq.js";
 import { applyCalibration, type Calibration } from "./calibration.service.js";
 import { logger } from "../lib/logger.js";
 
@@ -8,7 +9,7 @@ import { logger } from "../lib/logger.js";
  *
  *   1. A deterministic baseline score is computed from all four modules. The astrology
  *      moves the score (favourable / challenging signal, stability), it is not decoration.
- *   2. The AI receives the full evidence packet (including dasha periods, natal lagna/Moon,
+ *   2. The AI (Groq) receives the full evidence packet (including dasha periods, natal lagna/Moon,
  *      transit positions and the historical accuracy for this kind of question) and returns
  *      a refined score plus the narrative. Its score may only move the baseline by +/-15 so a
  *      bad completion can never override the modules.
@@ -202,27 +203,18 @@ export type CompleteFn = (prompt: string) => Promise<string | null>;
 let warnedNoAi = false;
 
 /**
- * Calls the OpenAI integration. The client library throws when it is loaded without its
- * environment variables, which would stop the whole server from starting, so it is loaded
- * lazily and only when both variables exist. Without them the engine-only answer is used
- * (synthesis.source = "engine") and the app keeps working.
+ * Calls Groq (see lib/groq.ts). Without GROQ_API_KEY nothing is sent and the engine-only answer
+ * is used (synthesis.source = "engine"), so the app keeps working.
  */
 const defaultComplete: CompleteFn = async (prompt) => {
-  if (!process.env.AI_INTEGRATIONS_OPENAI_BASE_URL || !process.env.AI_INTEGRATIONS_OPENAI_API_KEY) {
+  if (!groqConfigured()) {
     if (!warnedNoAi) {
       warnedNoAi = true;
-      logger.warn("AI_INTEGRATIONS_OPENAI_BASE_URL / _API_KEY are not set; using the engine-only answer");
+      logger.warn("GROQ_API_KEY is not set; using the engine-only answer");
     }
     return null;
   }
-  const { openai } = await import("@workspace/integrations-openai-ai-server");
-  const completion = await openai.chat.completions.create({
-    model: process.env.AI_MODEL || "gpt-4o-mini",
-    max_completion_tokens: 500,
-    response_format: { type: "json_object" },
-    messages: [{ role: "user", content: prompt }],
-  });
-  return completion.choices[0]?.message?.content ?? null;
+  return groqJsonCompletion(prompt);
 };
 
 export async function synthesize(

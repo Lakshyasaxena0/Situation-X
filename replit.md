@@ -15,7 +15,7 @@ A full-stack AI + astrology powered situation analysis application. Users descri
 - **Database**: PostgreSQL + Drizzle ORM
 - **Validation**: Zod (`zod/v4`), `drizzle-zod`
 - **API codegen**: Orval (from OpenAPI spec)
-- **AI**: OpenAI via Replit AI Integrations (gpt-5.2)
+- **AI**: Groq (OpenAI-compatible API), default model llama-3.3-70b-versatile
 - **Build**: esbuild (CJS bundle)
 
 ## Features
@@ -72,7 +72,10 @@ All under `/api` prefix:
 
 ## AI Integration
 
-Uses Replit AI Integrations for OpenAI access (no user API key needed).
-- Model: gpt-5.2 with JSON response format
-- Charges billed to Replit credits
-- Env vars: AI_INTEGRATIONS_OPENAI_BASE_URL, AI_INTEGRATIONS_OPENAI_API_KEY
+Uses Groq (https://api.groq.com/openai/v1) through plain `fetch` (`artifacts/api-server/src/lib/groq.ts`).
+The AI works together with the Prashna astrology: it receives the AJIT/MANU/SIVI results and the
+charts used, and returns a refined score, summary, astrological insight, advice and time frame.
+- Env vars: `GROQ_API_KEY` (required for AI answers), optional `GROQ_MODEL` (default `llama-3.3-70b-versatile`),
+  `GROQ_BASE_URL`, `GROQ_TIMEOUT_MS` (default 20000)
+- Without `GROQ_API_KEY`, or if Groq fails or times out, the answer comes from the engine + astrology alone
+  (`synthesis.source = "engine"`)

@@ -13,7 +13,6 @@
     "@clerk/express": "^2.0.8",
     "@workspace/api-zod": "workspace:*",
     "@workspace/db": "workspace:*",
-    "@workspace/integrations-openai-ai-server": "workspace:*",
     "astronomia": "^4.2.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2",
