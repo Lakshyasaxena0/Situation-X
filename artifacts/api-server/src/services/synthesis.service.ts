@@ -1,4 +1,3 @@
-import { openai } from "@workspace/integrations-openai-ai-server";
 import type { EngineResponse } from "./engine.service.js";
 import { applyCalibration, type Calibration } from "./calibration.service.js";
 import { logger } from "../lib/logger.js";
@@ -33,6 +32,9 @@ export type Synthesis = {
 };
 
 export const MAX_AI_ADJUSTMENT = 15;
+/** How strongly the Prashna score pulls the baseline (points per Prashna point, capped). */
+export const ASTRO_WEIGHT = 0.8;
+export const ASTRO_MAX_PULL = 25;
 const DEFAULT_TIMEFRAME_DAYS = 14;
 const MIN_TIMEFRAME_DAYS = 3;
 const MAX_TIMEFRAME_DAYS = 90;
@@ -47,8 +49,14 @@ export function baselineScore(engine: EngineResponse): number {
   let score = risk === "low" ? 80 : risk === "medium" ? 55 : 30;
   score += engine.emotion.emotion === "calm" ? 10 : engine.emotion.emotion === "confused" ? -5 : 0;
 
+  // The Prashna chart is the astrology's voice: its score moves the baseline in proportion to how
+  // strong the chart is (a clearly challenging chart outweighs an optimistic simulation; a weak one
+  // barely nudges it). Falls back to the plain signal if no Prashna reading is present.
   const { signal, stability } = engine.astro.influence;
-  score += signal === "favorable" ? 8 : signal === "challenging" ? -8 : 0;
+  const prashnaScore = engine.astro.prashna?.score;
+  score += prashnaScore !== undefined
+    ? Math.max(-ASTRO_MAX_PULL, Math.min(ASTRO_MAX_PULL, Math.round(prashnaScore * ASTRO_WEIGHT)))
+    : signal === "favorable" ? 8 : signal === "challenging" ? -8 : 0;
   score += stability === "high" ? 3 : stability === "low" ? -3 : 0;
 
   return Math.min(100, Math.max(0, score));
@@ -122,7 +130,6 @@ function describeTransits(engine: EngineResponse): string {
     `Current transits: ${planets}`,
     `Current dasha: ${a.dasha.mahadasha.planet} / ${a.dasha.antardasha.planet} / ${a.dasha.pratyantardasha.planet} (until ${a.dasha.pratyantardasha.endDate})`,
     `Astro module result: dominant planet ${a.influence.dominantPlanet}, signal ${a.influence.signal}, stability ${a.influence.stability}, risk ${a.influence.risk}`,
-    `Astro module reading: ${a.interpretation}`,
   ].join("\n");
 }
 
@@ -192,9 +199,25 @@ export function parseAiAnswer(raw: string | null | undefined, base: number) {
 
 export type CompleteFn = (prompt: string) => Promise<string | null>;
 
+let warnedNoAi = false;
+
+/**
+ * Calls the OpenAI integration. The client library throws when it is loaded without its
+ * environment variables, which would stop the whole server from starting, so it is loaded
+ * lazily and only when both variables exist. Without them the engine-only answer is used
+ * (synthesis.source = "engine") and the app keeps working.
+ */
 const defaultComplete: CompleteFn = async (prompt) => {
+  if (!process.env.AI_INTEGRATIONS_OPENAI_BASE_URL || !process.env.AI_INTEGRATIONS_OPENAI_API_KEY) {
+    if (!warnedNoAi) {
+      warnedNoAi = true;
+      logger.warn("AI_INTEGRATIONS_OPENAI_BASE_URL / _API_KEY are not set; using the engine-only answer");
+    }
+    return null;
+  }
+  const { openai } = await import("@workspace/integrations-openai-ai-server");
   const completion = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
+    model: process.env.AI_MODEL || "gpt-4o-mini",
     max_completion_tokens: 500,
     response_format: { type: "json_object" },
     messages: [{ role: "user", content: prompt }],
