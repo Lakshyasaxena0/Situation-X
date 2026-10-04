@@ -25,7 +25,16 @@ app.use(
 app.use(CLERK_PROXY_PATH, clerkProxyMiddleware());
 
 app.use(cors({ credentials: true, origin: true }));
-app.use(express.json());
+app.use(
+  express.json({
+    // Razorpay signs the exact bytes it sends, so keep them for the webhook route only.
+    verify: (req, _res, buf) => {
+      if ((req as Request).originalUrl?.startsWith("/api/billing/webhook")) {
+        (req as Request & { rawBody?: Buffer }).rawBody = Buffer.from(buf);
+      }
+    },
+  }),
+);
 app.use(express.urlencoded({ extended: true }));
 
 app.use(clerkMiddleware());

@@ -413,6 +413,77 @@ export interface DueFollowUpsResponse {
   total: number;
 }
 
+export type BillingQuotePlanId =
+  (typeof BillingQuotePlanId)[keyof typeof BillingQuotePlanId];
+
+export const BillingQuotePlanId = {
+  monthly: "monthly",
+  six_months: "six_months",
+  yearly: "yearly",
+  two_years: "two_years",
+} as const;
+
+/**
+ * Price breakdown of one plan. All money values are integer paise (INR).
+ */
+export interface BillingQuote {
+  planId: BillingQuotePlanId;
+  label: string;
+  months: number;
+  currency: string;
+  monthlyPaise: number;
+  grossPaise: number;
+  discountPct: number;
+  discountPaise: number;
+  gstPct: number;
+  gstPaise: number;
+  totalPaise: number;
+  effectivePerMonthPaise: number;
+}
+
+export interface BillingPlansResponse {
+  currency: string;
+  paywallEnabled: boolean;
+  plans: BillingQuote[];
+}
+
+export interface SubscriptionStatus {
+  active: boolean;
+  plan: string | null;
+  currentPeriodEnd: string | null;
+  daysLeft: number;
+  paywallEnabled: boolean;
+}
+
+export type CreateOrderRequestPlan =
+  (typeof CreateOrderRequestPlan)[keyof typeof CreateOrderRequestPlan];
+
+export const CreateOrderRequestPlan = {
+  monthly: "monthly",
+  six_months: "six_months",
+  yearly: "yearly",
+  two_years: "two_years",
+} as const;
+
+export interface CreateOrderRequest {
+  plan: CreateOrderRequestPlan;
+}
+
+export interface CreateOrderResponse {
+  orderId: string;
+  keyId: string;
+  amountPaise: number;
+  currency: string;
+  plan: string;
+  quote: BillingQuote;
+}
+
+export interface VerifyPaymentRequest {
+  razorpay_order_id: string;
+  razorpay_payment_id: string;
+  razorpay_signature: string;
+}
+
 export interface DeleteResponse {
   success: boolean;
   message: string;

@@ -9,6 +9,7 @@ import Landing from "@/pages/landing";
 import Oracle from "@/pages/oracle";
 import History from "@/pages/history";
 import Feedback from "@/pages/feedback";
+import Pricing from "@/pages/pricing";
 
 const queryClient = new QueryClient();
 
@@ -113,6 +114,19 @@ function FeedbackPage() {
   );
 }
 
+function PricingPage() {
+  return (
+    <>
+      <Show when="signed-in">
+        <Pricing />
+      </Show>
+      <Show when="signed-out">
+        <Redirect to="/" />
+      </Show>
+    </>
+  );
+}
+
 function ClerkProviderWithRoutes() {
   const [, setLocation] = useLocation();
 
@@ -131,6 +145,7 @@ function ClerkProviderWithRoutes() {
             <Route path="/oracle" component={OraclePage} />
             <Route path="/history" component={HistoryPage} />
             <Route path="/feedback" component={FeedbackPage} />
+            <Route path="/pricing" component={PricingPage} />
             <Route path="/sign-in/*?" component={SignInPage} />
             <Route path="/sign-up/*?" component={SignUpPage} />
             <Route component={NotFound} />

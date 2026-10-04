@@ -1,3 +1,4 @@
+import { Link } from "wouter";
 import { useState } from "react";
 import {
   useAnalyzeSituation,
@@ -398,10 +399,19 @@ export default function Oracle() {
             )}
           </Button>
 
-          {analyze.isError && (
-            <p className="text-sm text-red-400 text-center">
-              {analysisErrorMessage(analyze.error)}
+          {analyze.isError && (analyze.error as { status?: number } | null)?.status === 402 ? (
+            <p className="text-sm text-center text-foreground">
+              An active subscription is needed to run an analysis.{" "}
+              <Link href="/pricing" className="text-primary underline underline-offset-2">
+                View plans
+              </Link>
             </p>
+          ) : (
+            analyze.isError && (
+              <p className="text-sm text-red-400 text-center">
+                {analysisErrorMessage(analyze.error)}
+              </p>
+            )
           )}
         </form>
 

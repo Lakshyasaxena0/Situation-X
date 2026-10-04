@@ -79,3 +79,20 @@ charts used, and returns a refined score, summary, astrological insight, advice 
   `GROQ_BASE_URL`, `GROQ_TIMEOUT_MS` (default 20000)
 - Without `GROQ_API_KEY`, or if Groq fails or times out, the answer comes from the engine + astrology alone
   (`synthesis.source = "engine"`)
+
+## Subscriptions & payments (Razorpay, INR)
+Prepaid, no auto-renewal: Monthly, 6 Months, 1 Year, 2 Years. Price logic lives in
+`artifacts/api-server/src/services/billing.service.ts` (`gross = monthly x months`, minus the plan
+discount, plus optional GST; integer paise, always computed on the server). Razorpay Orders API via
+`src/lib/razorpay.ts`; routes in `src/routes/billing.ts`; UI at `/pricing`.
+- Flow: `POST /api/billing/order` (plan id only) -> Razorpay Checkout in the browser ->
+  `POST /api/billing/verify` (HMAC signature check) activates the plan. `POST /api/billing/webhook`
+  is the backup (signature-verified; activates even if the browser closed). Both are idempotent.
+  Buying while a plan is running adds time on top of the remaining days.
+- Tables `subscriptions`, `payments`: run `pnpm --filter @workspace/db run push` after deploying.
+- Env vars: `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET`;
+  pricing `BILLING_MONTHLY_PRICE_INR` (default 199), `BILLING_DISCOUNT_PCT` (default `0,10,20,30` for 1/6/12/24 months),
+  `BILLING_GST_PCT` (default 0); `BILLING_PAYWALL=on` makes `POST /api/analysis/analyze` require an active
+  plan (402 otherwise; default off); `BILLING_FREE_USER_IDS` = comma list of Clerk ids that skip the paywall.
+- Razorpay dashboard webhook URL: `https://<your-domain>/api/billing/webhook`, events `payment.captured`
+  and `order.paid`, secret = `RAZORPAY_WEBHOOK_SECRET`.

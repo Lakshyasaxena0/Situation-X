@@ -1383,6 +1383,95 @@ export const DismissFollowUpResponse = zod.object({
 });
 
 /**
+ * @summary Subscription plans with the full price breakdown (INR)
+ */
+export const GetBillingPlansResponse = zod.object({
+  currency: zod.string(),
+  paywallEnabled: zod.boolean(),
+  plans: zod.array(
+    zod
+      .object({
+        planId: zod.enum(["monthly", "six_months", "yearly", "two_years"]),
+        label: zod.string(),
+        months: zod.number(),
+        currency: zod.string(),
+        monthlyPaise: zod.number(),
+        grossPaise: zod.number(),
+        discountPct: zod.number(),
+        discountPaise: zod.number(),
+        gstPct: zod.number(),
+        gstPaise: zod.number(),
+        totalPaise: zod.number(),
+        effectivePerMonthPaise: zod.number(),
+      })
+      .describe(
+        "Price breakdown of one plan. All money values are integer paise (INR).",
+      ),
+  ),
+});
+
+/**
+ * @summary The signed-in user's subscription
+ */
+export const GetSubscriptionStatusResponse = zod.object({
+  active: zod.boolean(),
+  plan: zod.string().nullable(),
+  currentPeriodEnd: zod.string().nullable(),
+  daysLeft: zod.number(),
+  paywallEnabled: zod.boolean(),
+});
+
+/**
+ * @summary Start a Razorpay checkout for a plan (the amount is computed on the server)
+ */
+export const CreateBillingOrderBody = zod.object({
+  plan: zod.enum(["monthly", "six_months", "yearly", "two_years"]),
+});
+
+export const CreateBillingOrderResponse = zod.object({
+  orderId: zod.string(),
+  keyId: zod.string(),
+  amountPaise: zod.number(),
+  currency: zod.string(),
+  plan: zod.string(),
+  quote: zod
+    .object({
+      planId: zod.enum(["monthly", "six_months", "yearly", "two_years"]),
+      label: zod.string(),
+      months: zod.number(),
+      currency: zod.string(),
+      monthlyPaise: zod.number(),
+      grossPaise: zod.number(),
+      discountPct: zod.number(),
+      discountPaise: zod.number(),
+      gstPct: zod.number(),
+      gstPaise: zod.number(),
+      totalPaise: zod.number(),
+      effectivePerMonthPaise: zod.number(),
+    })
+    .describe(
+      "Price breakdown of one plan. All money values are integer paise (INR).",
+    ),
+});
+
+/**
+ * @summary Confirm a Checkout payment (verifies Razorpay's signature) and activate the subscription
+ */
+export const VerifyBillingPaymentBody = zod.object({
+  razorpay_order_id: zod.string(),
+  razorpay_payment_id: zod.string(),
+  razorpay_signature: zod.string(),
+});
+
+export const VerifyBillingPaymentResponse = zod.object({
+  active: zod.boolean(),
+  plan: zod.string().nullable(),
+  currentPeriodEnd: zod.string().nullable(),
+  daysLeft: zod.number(),
+  paywallEnabled: zod.boolean(),
+});
+
+/**
  * @summary Submit feedback for an analysis
  */
 export const createFeedbackBodyRatingMax = 5;

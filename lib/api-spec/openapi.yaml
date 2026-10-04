@@ -10,6 +10,7 @@ tags:
   - name: health
   - name: analysis
   - name: feedback
+  - name: billing
 paths:
   /healthz:
     get:
@@ -185,6 +186,94 @@ paths:
                 $ref: "#/components/schemas/DeleteResponse"
         "404":
           description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /billing/plans:
+    get:
+      operationId: getBillingPlans
+      tags: [billing]
+      summary: Subscription plans with the full price breakdown (INR)
+      responses:
+        "200":
+          description: Plans
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BillingPlansResponse"
+
+  /billing/status:
+    get:
+      operationId: getSubscriptionStatus
+      tags: [billing]
+      summary: The signed-in user's subscription
+      responses:
+        "200":
+          description: Subscription status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubscriptionStatus"
+
+  /billing/order:
+    post:
+      operationId: createBillingOrder
+      tags: [billing]
+      summary: Start a Razorpay checkout for a plan (the amount is computed on the server)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateOrderRequest"
+      responses:
+        "200":
+          description: Razorpay order to open in Checkout
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateOrderResponse"
+        "400":
+          description: Unknown plan
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Payments not configured
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /billing/verify:
+    post:
+      operationId: verifyBillingPayment
+      tags: [billing]
+      summary: Confirm a Checkout payment (verifies Razorpay's signature) and activate the subscription
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VerifyPaymentRequest"
+      responses:
+        "200":
+          description: Updated subscription status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubscriptionStatus"
+        "400":
+          description: Signature mismatch
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Order not found
           content:
             application/json:
               schema:
@@ -797,6 +886,133 @@ components:
       required:
         - items
         - total
+
+    BillingQuote:
+      type: object
+      description: Price breakdown of one plan. All money values are integer paise (INR).
+      properties:
+        planId:
+          type: string
+          enum: [monthly, six_months, yearly, two_years]
+        label:
+          type: string
+        months:
+          type: integer
+        currency:
+          type: string
+        monthlyPaise:
+          type: integer
+        grossPaise:
+          type: integer
+        discountPct:
+          type: number
+        discountPaise:
+          type: integer
+        gstPct:
+          type: number
+        gstPaise:
+          type: integer
+        totalPaise:
+          type: integer
+        effectivePerMonthPaise:
+          type: integer
+      required:
+        - planId
+        - label
+        - months
+        - currency
+        - monthlyPaise
+        - grossPaise
+        - discountPct
+        - discountPaise
+        - gstPct
+        - gstPaise
+        - totalPaise
+        - effectivePerMonthPaise
+
+    BillingPlansResponse:
+      type: object
+      properties:
+        currency:
+          type: string
+        paywallEnabled:
+          type: boolean
+        plans:
+          type: array
+          items:
+            $ref: "#/components/schemas/BillingQuote"
+      required:
+        - currency
+        - paywallEnabled
+        - plans
+
+    SubscriptionStatus:
+      type: object
+      properties:
+        active:
+          type: boolean
+        plan:
+          type: string
+          nullable: true
+        currentPeriodEnd:
+          type: string
+          nullable: true
+        daysLeft:
+          type: integer
+        paywallEnabled:
+          type: boolean
+      required:
+        - active
+        - plan
+        - currentPeriodEnd
+        - daysLeft
+        - paywallEnabled
+
+    CreateOrderRequest:
+      type: object
+      properties:
+        plan:
+          type: string
+          enum: [monthly, six_months, yearly, two_years]
+      required:
+        - plan
+
+    CreateOrderResponse:
+      type: object
+      properties:
+        orderId:
+          type: string
+        keyId:
+          type: string
+        amountPaise:
+          type: integer
+        currency:
+          type: string
+        plan:
+          type: string
+        quote:
+          $ref: "#/components/schemas/BillingQuote"
+      required:
+        - orderId
+        - keyId
+        - amountPaise
+        - currency
+        - plan
+        - quote
+
+    VerifyPaymentRequest:
+      type: object
+      properties:
+        razorpay_order_id:
+          type: string
+        razorpay_payment_id:
+          type: string
+        razorpay_signature:
+          type: string
+      required:
+        - razorpay_order_id
+        - razorpay_payment_id
+        - razorpay_signature
 
     DeleteResponse:
       type: object
