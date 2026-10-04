@@ -1,5 +1,5 @@
-import { openai } from "@workspace/integrations-openai-ai-server";
 import type { EngineResponse } from "./engine.service.js";
+import { groqConfigured, groqJsonCompletion } from "../lib/groq.js";
 import { applyCalibration, type Calibration } from "./calibration.service.js";
 import { logger } from "../lib/logger.js";
 
@@ -9,7 +9,7 @@ import { logger } from "../lib/logger.js";
  *
  *   1. A deterministic baseline score is computed from all four modules. The astrology
  *      moves the score (favourable / challenging signal, stability), it is not decoration.
- *   2. The AI receives the full evidence packet (including dasha periods, natal lagna/Moon,
+ *   2. The AI (Groq) receives the full evidence packet (including dasha periods, natal lagna/Moon,
  *      transit positions and the historical accuracy for this kind of question) and returns
  *      a refined score plus the narrative. Its score may only move the baseline by +/-15 so a
  *      bad completion can never override the modules.
@@ -33,6 +33,9 @@ export type Synthesis = {
 };
 
 export const MAX_AI_ADJUSTMENT = 15;
+/** How strongly the Prashna score pulls the baseline (points per Prashna point, capped). */
+export const ASTRO_WEIGHT = 0.8;
+export const ASTRO_MAX_PULL = 25;
 const DEFAULT_TIMEFRAME_DAYS = 14;
 const MIN_TIMEFRAME_DAYS = 3;
 const MAX_TIMEFRAME_DAYS = 90;
@@ -47,8 +50,14 @@ export function baselineScore(engine: EngineResponse): number {
   let score = risk === "low" ? 80 : risk === "medium" ? 55 : 30;
   score += engine.emotion.emotion === "calm" ? 10 : engine.emotion.emotion === "confused" ? -5 : 0;
 
+  // The Prashna chart is the astrology's voice: its score moves the baseline in proportion to how
+  // strong the chart is (a clearly challenging chart outweighs an optimistic simulation; a weak one
+  // barely nudges it). Falls back to the plain signal if no Prashna reading is present.
   const { signal, stability } = engine.astro.influence;
-  score += signal === "favorable" ? 8 : signal === "challenging" ? -8 : 0;
+  const prashnaScore = engine.astro.prashna?.score;
+  score += prashnaScore !== undefined
+    ? Math.max(-ASTRO_MAX_PULL, Math.min(ASTRO_MAX_PULL, Math.round(prashnaScore * ASTRO_WEIGHT)))
+    : signal === "favorable" ? 8 : signal === "challenging" ? -8 : 0;
   score += stability === "high" ? 3 : stability === "low" ? -3 : 0;
 
   return Math.min(100, Math.max(0, score));
@@ -122,7 +131,6 @@ function describeTransits(engine: EngineResponse): string {
     `Current transits: ${planets}`,
     `Current dasha: ${a.dasha.mahadasha.planet} / ${a.dasha.antardasha.planet} / ${a.dasha.pratyantardasha.planet} (until ${a.dasha.pratyantardasha.endDate})`,
     `Astro module result: dominant planet ${a.influence.dominantPlanet}, signal ${a.influence.signal}, stability ${a.influence.stability}, risk ${a.influence.risk}`,
-    `Astro module reading: ${a.interpretation}`,
   ].join("\n");
 }
 
@@ -192,14 +200,21 @@ export function parseAiAnswer(raw: string | null | undefined, base: number) {
 
 export type CompleteFn = (prompt: string) => Promise<string | null>;
 
+let warnedNoAi = false;
+
+/**
+ * Calls Groq (see lib/groq.ts). Without GROQ_API_KEY nothing is sent and the engine-only answer
+ * is used (synthesis.source = "engine"), so the app keeps working.
+ */
 const defaultComplete: CompleteFn = async (prompt) => {
-  const completion = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    max_completion_tokens: 500,
-    response_format: { type: "json_object" },
-    messages: [{ role: "user", content: prompt }],
-  });
-  return completion.choices[0]?.message?.content ?? null;
+  if (!groqConfigured()) {
+    if (!warnedNoAi) {
+      warnedNoAi = true;
+      logger.warn("GROQ_API_KEY is not set; using the engine-only answer");
+    }
+    return null;
+  }
+  return groqJsonCompletion(prompt);
 };
 
 export async function synthesize(

@@ -123,18 +123,18 @@ export const SIGNAL_THRESHOLD = 8;
 
 /**
  * The rules above award more points than they take away for an ordinary sky (more houses are
- * "supportive" than "difficult"). The median raw score over 6000 random moments of a year is
+ * "supportive" than "difficult"). The median raw score over 9000 random moments of a year is
  * listed here per question type, and the reading is measured RELATIVE to it, so "favorable"
  * means better than a typical sky and "challenging" worse. With this centering about a third of
  * all moments fall in each of favorable / neutral / challenging.
  */
 export const TYPICAL_SKY_SCORE: Record<IntentType, number> = {
   career: 10,
-  relationship: 8,
-  decision: 6,
-  conflict: 11,
+  relationship: 9,
+  decision: 8,
+  conflict: 13,
   health: 7,
-  unclear: 6,
+  unclear: 7,
 };
 const CENTERING_LABEL = "Scale centering";
 
@@ -187,7 +187,6 @@ function scoreHouse(
   goodHouses: number[],
   weight: number,
   label: string,
-  moonWaxing: boolean,
 ): void {
   const lordName = lordOfHouse(chart, house);
   const lord = planet(chart, lordName);
@@ -199,12 +198,13 @@ function scoreHouse(
   const dig = dignityScore(lord.dignity, 5 * weight);
   if (dig !== 0) c.add(label, dig, `${where} is ${lord.dignity} in ${lord.sign}`);
 
-  for (const occ of chart.planets.filter((p) => p.house === house && p.name !== lordName)) {
-    const benefic = NATURAL_BENEFICS.has(occ.name) || (occ.name === "Moon" && moonWaxing);
+  // The Moon is judged on its own (phase, house, dignity) in readPrashna, so it is not scored again as an occupant.
+  for (const occ of chart.planets.filter((p) => p.house === house && p.name !== lordName && p.name !== "Moon")) {
+    const benefic = NATURAL_BENEFICS.has(occ.name);
     if (benefic) c.add(label, 5 * weight, `${occ.name} (benefic) occupies the ${ORDINAL[house]} house in ${chart.chartType}`);
-    else if (NATURAL_MALEFICS.has(occ.name) || occ.name === "Moon") {
+    else if (NATURAL_MALEFICS.has(occ.name)) {
       // Malefics in the growth houses (3, 6, 10, 11) are helpful: they give drive and win obstacles.
-      if (UPACHAYA.has(house) && occ.name !== "Moon") c.add(label, 3 * weight, `${occ.name} occupies the ${ORDINAL[house]} house, a house where it gives drive`);
+      if (UPACHAYA.has(house)) c.add(label, 3 * weight, `${occ.name} occupies the ${ORDINAL[house]} house, a house where it gives drive`);
       else c.add(label, -5 * weight, `${occ.name} (malefic) occupies the ${ORDINAL[house]} house in ${chart.chartType}`);
     }
   }
@@ -228,7 +228,7 @@ export function readPrashna(intent: IntentType, sky: PrashnaSky): PrashnaReading
   // 1. Lagna lord: the querent. Skipped when the lagna itself is the question-house (avoids counting it twice).
   const startFactors = c.factors.length;
   if (profile.primaryHouse !== 1) {
-    scoreHouse(c, d1, 1, STANDARD_GOOD_HOUSES, 0.8, "Querent (lagna)", sky.moonWaxing);
+    scoreHouse(c, d1, 1, STANDARD_GOOD_HOUSES, 0.8, "Querent (lagna)");
   }
   const querentScore = c.factors.slice(startFactors).reduce((s, f) => s + f.effect, 0);
 
@@ -243,11 +243,11 @@ export function readPrashna(intent: IntentType, sky: PrashnaSky): PrashnaReading
   const moonScore = c.factors.slice(moonStart).reduce((s, f) => s + f.effect, 0);
 
   // 3. The house of the question (D1).
-  scoreHouse(c, d1, profile.primaryHouse, profile.goodLordHouses, 1, profile.topic, sky.moonWaxing);
+  scoreHouse(c, d1, profile.primaryHouse, profile.goodLordHouses, 1, profile.topic);
 
   // 4. Supporting houses, lighter.
   for (const h of profile.supportHouses) {
-    scoreHouse(c, d1, h, STANDARD_GOOD_HOUSES, 0.4, `${ORDINAL[h]} house`, sky.moonWaxing);
+    scoreHouse(c, d1, h, STANDARD_GOOD_HOUSES, 0.4, `${ORDINAL[h]} house`);
   }
 
   // 5. Karakas: the natural significators of this kind of question.
@@ -271,7 +271,7 @@ export function readPrashna(intent: IntentType, sky: PrashnaSky): PrashnaReading
   for (const use of profile.divisional) {
     const chart = divisionalCharts[use.chart];
     const before = c.factors.length;
-    scoreHouse(c, chart, use.house, STANDARD_GOOD_HOUSES, 0.6, `${use.chart} ${use.purpose}`, sky.moonWaxing);
+    scoreHouse(c, chart, use.house, STANDARD_GOOD_HOUSES, 0.6, `${use.chart} ${use.purpose}`);
     // How the key planets fare in this chart (the "fruit" of the D1 promise).
     for (const k of profile.karakas.slice(0, 1)) {
       const p = planet(chart, k);
