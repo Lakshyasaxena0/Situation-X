@@ -690,7 +690,12 @@ export const CreateOrderResponseKind = {
 export interface CreateOrderResponse {
   orderId: string;
   keyId: string;
+  /** What is actually charged, after any referral discount */
   amountPaise: number;
+  /** Price before the referral discount */
+  listPricePaise: number;
+  referralDiscountPct: number;
+  referralDiscountPaise: number;
   currency: string;
   kind: CreateOrderResponseKind;
   product: string;
@@ -761,6 +766,33 @@ export interface FeedbackListResponse {
   total: number;
   limit: number;
   offset: number;
+}
+
+export interface ReferralSummary {
+  /** The user's invite code */
+  code: string;
+  /** Discount earned for each friend who pays */
+  rewardPct: number;
+  /** Smallest first payment by the friend that earns the discount */
+  minPaymentPaise: number;
+  /** Friends who applied the code */
+  invited: number;
+  /** Friends who paid (discounts earned so far) */
+  converted: number;
+  discountsAvailable: number;
+  /** Discount that will be applied to the next purchase (0 if none) */
+  nextDiscountPct: number;
+  /** This user already applied someone's invite code */
+  referredBy: boolean;
+}
+
+export interface RedeemReferralRequest {
+  code: string;
+}
+
+export interface RedeemReferralResponse {
+  applied: boolean;
+  message: string;
 }
 
 export interface ErrorResponse {

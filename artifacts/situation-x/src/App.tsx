@@ -10,6 +10,12 @@ import Oracle from "@/pages/oracle";
 import History from "@/pages/history";
 import Feedback from "@/pages/feedback";
 import Pricing from "@/pages/pricing";
+import Invite from "@/pages/invite";
+import { ReferralRedeemer } from "@/components/ReferralRedeemer";
+import { capturePendingReferral } from "@/lib/referralLink";
+
+// An invite link (?ref=CODE) is remembered before sign-up and applied right after sign-in.
+capturePendingReferral();
 
 const queryClient = new QueryClient();
 
@@ -127,6 +133,19 @@ function PricingPage() {
   );
 }
 
+function InvitePage() {
+  return (
+    <>
+      <Show when="signed-in">
+        <Invite />
+      </Show>
+      <Show when="signed-out">
+        <Redirect to="/" />
+      </Show>
+    </>
+  );
+}
+
 function ClerkProviderWithRoutes() {
   const [, setLocation] = useLocation();
 
@@ -140,12 +159,16 @@ function ClerkProviderWithRoutes() {
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
           <ClerkQueryClientCacheInvalidator />
+          <Show when="signed-in">
+            <ReferralRedeemer />
+          </Show>
           <Switch>
             <Route path="/" component={HomeRedirect} />
             <Route path="/oracle" component={OraclePage} />
             <Route path="/history" component={HistoryPage} />
             <Route path="/feedback" component={FeedbackPage} />
             <Route path="/pricing" component={PricingPage} />
+            <Route path="/invite" component={InvitePage} />
             <Route path="/sign-in/*?" component={SignInPage} />
             <Route path="/sign-up/*?" component={SignUpPage} />
             <Route component={NotFound} />

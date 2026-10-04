@@ -77,3 +77,49 @@ export const creditLedgerTable = pgTable("credit_ledger", {
 
 export type CreditWallet = typeof creditWalletsTable.$inferSelect;
 export type CreditLedgerEntry = typeof creditLedgerTable.$inferSelect;
+
+/**
+ * Invite-a-friend. Every user has one shareable code.
+ */
+export const referralCodesTable = pgTable("referral_codes", {
+  userId: text("user_id").primaryKey(),
+  code: text("code").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [uniqueIndex("referral_codes_code_idx").on(table.code)]);
+
+/**
+ * Who invited whom. `refereeId` is unique: a person can be invited by only one user, once.
+ */
+export const referralsTable = pgTable("referrals", {
+  id: serial("id").primaryKey(),
+  referrerId: text("referrer_id").notNull(),
+  refereeId: text("referee_id").notNull(),
+  code: text("code").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("referrals_referee_idx").on(table.refereeId),
+  index("referrals_referrer_idx").on(table.referrerId),
+  check("referrals_not_self", sql`${table.referrerId} <> ${table.refereeId}`),
+]);
+
+/**
+ * The referrer's discount, earned when the invited friend makes their FIRST qualifying payment.
+ * `referralId` is unique, so one friend can earn at most one discount. status:
+ *   available -> reserved (attached to an unpaid order) -> used (that order was paid)
+ */
+export const referralRewardsTable = pgTable("referral_rewards", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(), // the referrer who receives the discount
+  referralId: integer("referral_id").notNull(),
+  discountPct: integer("discount_pct").notNull(),
+  status: text("status").notNull().default("available"), // available | reserved | used
+  orderId: text("order_id"),
+  reservedAt: timestamp("reserved_at", { withTimezone: true }),
+  usedAt: timestamp("used_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("referral_rewards_referral_idx").on(table.referralId),
+  index("referral_rewards_user_idx").on(table.userId, table.status),
+]);
+
+export type ReferralReward = typeof referralRewardsTable.$inferSelect;

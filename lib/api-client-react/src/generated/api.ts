@@ -36,6 +36,9 @@ import type {
   GetFeedbackListParams,
   HealthStatus,
   InsufficientCreditsResponse,
+  RedeemReferralRequest,
+  RedeemReferralResponse,
+  ReferralSummary,
   SubscriptionStatus,
   VerifyPaymentRequest,
 } from "./api.schemas";
@@ -1121,6 +1124,167 @@ export const useCreateBillingOrder = <
   TContext
 > => {
   return useMutation(getCreateBillingOrderMutationOptions(options));
+};
+
+/**
+ * @summary Invite a friend - the signed-in user's invite code, how many friends joined and paid, and the discount waiting for their next purchase
+ */
+export const getGetReferralUrl = () => {
+  return `/api/referral`;
+};
+
+export const getReferral = async (
+  options?: RequestInit,
+): Promise<ReferralSummary> => {
+  return customFetch<ReferralSummary>(getGetReferralUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetReferralQueryKey = () => {
+  return [`/api/referral`] as const;
+};
+
+export const getGetReferralQueryOptions = <
+  TData = Awaited<ReturnType<typeof getReferral>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getReferral>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetReferralQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getReferral>>> = ({
+    signal,
+  }) => getReferral({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getReferral>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetReferralQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getReferral>>
+>;
+export type GetReferralQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Invite a friend - the signed-in user's invite code, how many friends joined and paid, and the discount waiting for their next purchase
+ */
+
+export function useGetReferral<
+  TData = Awaited<ReturnType<typeof getReferral>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getReferral>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetReferralQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Apply a friend's invite code (once, before the first payment)
+ */
+export const getRedeemReferralCodeUrl = () => {
+  return `/api/referral/redeem`;
+};
+
+export const redeemReferralCode = async (
+  redeemReferralRequest: RedeemReferralRequest,
+  options?: RequestInit,
+): Promise<RedeemReferralResponse> => {
+  return customFetch<RedeemReferralResponse>(getRedeemReferralCodeUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(redeemReferralRequest),
+  });
+};
+
+export const getRedeemReferralCodeMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof redeemReferralCode>>,
+    TError,
+    { data: BodyType<RedeemReferralRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof redeemReferralCode>>,
+  TError,
+  { data: BodyType<RedeemReferralRequest> },
+  TContext
+> => {
+  const mutationKey = ["redeemReferralCode"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof redeemReferralCode>>,
+    { data: BodyType<RedeemReferralRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return redeemReferralCode(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RedeemReferralCodeMutationResult = NonNullable<
+  Awaited<ReturnType<typeof redeemReferralCode>>
+>;
+export type RedeemReferralCodeMutationBody = BodyType<RedeemReferralRequest>;
+export type RedeemReferralCodeMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Apply a friend's invite code (once, before the first payment)
+ */
+export const useRedeemReferralCode = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof redeemReferralCode>>,
+    TError,
+    { data: BodyType<RedeemReferralRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof redeemReferralCode>>,
+  TError,
+  { data: BodyType<RedeemReferralRequest> },
+  TContext
+> => {
+  return useMutation(getRedeemReferralCodeMutationOptions(options));
 };
 
 /**

@@ -21,6 +21,16 @@ import { AI_COSTS, DEPTH_LABELS, MODULE_COSTS } from "../services/credit-cost.se
 import { billingActiveFor, getBalance, recentLedger } from "../services/credits.service.js";
 import { activateOrder, getSubscriptionStatus } from "../services/subscription.service.js";
 import {
+  attachRewardToOrder,
+  discountPaiseFor,
+  getOrCreateCode,
+  normalizeCode,
+  redeemCode,
+  releaseReward,
+  reserveReward,
+  summaryFor,
+} from "../services/referral.service.js";
+import {
   createOrder,
   razorpayConfigured,
   razorpayKeyId,
@@ -124,6 +134,43 @@ function resolveProduct(body: Record<string, unknown>):
   return { ok: true, kind: "single", id: "single", quote, amountPaise: quote.totalPaise, months: 0, credits: quote.credits };
 }
 
+/** Invite a friend: the signed-in user's code, share link data and how many friends have paid. */
+router.get("/referral", async (_req, res, next) => {
+  try {
+    res.json(await summaryFor(currentUserId(res)));
+  } catch (err) {
+    next(err);
+  }
+});
+
+const REDEEM_ERRORS = {
+  invalid_code: { status: 404, message: "That invite code was not found." },
+  own_code: { status: 400, message: "You cannot use your own invite code." },
+  already_referred: { status: 409, message: "You have already used an invite code." },
+  already_paid: { status: 409, message: "Invite codes can only be used before your first payment." },
+} as const;
+
+router.post("/referral/redeem", async (req, res, next) => {
+  try {
+    const raw = (req.body as { code?: unknown } | undefined)?.code;
+    if (typeof raw !== "string" || normalizeCode(raw).length === 0 || raw.length > 40) {
+      res.status(400).json({ error: "validation_error", message: "Enter an invite code." });
+      return;
+    }
+    const userId = currentUserId(res);
+    await getOrCreateCode(userId); // every user has a code of their own from the first call on
+    const result = await redeemCode(userId, raw);
+    if (!result.ok) {
+      const { status, message } = REDEEM_ERRORS[result.reason];
+      res.status(status).json({ error: result.reason, message });
+      return;
+    }
+    res.json({ applied: true, message: "Invite code applied. Your friend gets a discount when you make your first payment." });
+  } catch (err) {
+    next(err);
+  }
+});
+
 router.post("/billing/order", async (req, res, next) => {
   try {
     const product = resolveProduct((req.body ?? {}) as Record<string, unknown>);
@@ -143,35 +190,52 @@ router.post("/billing/order", async (req, res, next) => {
       return;
     }
 
+    // A discount earned by inviting a friend is applied here, on the server, to one order at a time.
+    const reward = await reserveReward(userId);
+    const referralDiscountPaise = reward ? discountPaiseFor(product.amountPaise, reward.discountPct) : 0;
+    const payablePaise = product.amountPaise - referralDiscountPaise;
+
     let order;
     try {
       order = await createOrder({
-        amountPaise: product.amountPaise,
+        amountPaise: payablePaise,
         receipt: `sx_${Date.now().toString(36)}_${userId.slice(-10)}`.slice(0, 40),
         notes: { userId, product: product.id, kind: product.kind },
       });
     } catch (err) {
+      if (reward) await releaseReward(reward.id);
       req.log.error({ err }, "Razorpay order creation failed");
       res.status(502).json({ error: "payment_provider_error", message: "Could not start the payment. Please try again." });
       return;
     }
 
-    await db.insert(paymentsTable).values({
-      userId,
-      orderId: order.id,
-      plan: product.id,
-      kind: product.kind,
-      months: product.months,
-      credits: product.credits,
-      amountPaise: product.amountPaise,
-      currency: "INR",
-      quote: product.quote,
-    });
+    try {
+      await db.insert(paymentsTable).values({
+        userId,
+        orderId: order.id,
+        plan: product.id,
+        kind: product.kind,
+        months: product.months,
+        credits: product.credits,
+        amountPaise: payablePaise,
+        currency: "INR",
+        quote: reward
+          ? { ...product.quote, referralDiscountPct: reward.discountPct, referralDiscountPaise, listPricePaise: product.amountPaise }
+          : product.quote,
+      });
+      if (reward) await attachRewardToOrder(reward.id, order.id);
+    } catch (err) {
+      if (reward) await releaseReward(reward.id);
+      throw err;
+    }
 
     res.json({
       orderId: order.id,
       keyId: razorpayKeyId(),
-      amountPaise: product.amountPaise,
+      amountPaise: payablePaise,
+      listPricePaise: product.amountPaise,
+      referralDiscountPct: reward?.discountPct ?? 0,
+      referralDiscountPaise,
       currency: "INR",
       kind: product.kind,
       product: product.id,

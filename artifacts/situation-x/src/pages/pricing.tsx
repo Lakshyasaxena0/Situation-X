@@ -5,10 +5,12 @@ import {
   useGetBillingPlans,
   useGetSubscriptionStatus,
   useGetCredits,
+  useGetReferral,
   useCreateBillingOrder,
   useVerifyBillingPayment,
   getGetSubscriptionStatusQueryKey,
   getGetCreditsQueryKey,
+  getGetReferralQueryKey,
   type BillingQuote,
   type CreditPackQuote,
   type CreateOrderRequest,
@@ -69,6 +71,7 @@ function PlanCard({
   busy,
   disabled,
   renew,
+  inviteDiscountPct = 0,
   onBuy,
 }: {
   quote: BillingQuote;
@@ -76,6 +79,7 @@ function PlanCard({
   busy: boolean;
   disabled: boolean;
   renew: boolean;
+  inviteDiscountPct?: number;
   onBuy: () => void;
 }) {
   return (
@@ -115,9 +119,15 @@ function PlanCard({
             <dd>{rupees(quote.gstPaise)}</dd>
           </div>
         )}
+        {inviteDiscountPct > 0 && (
+          <div className="flex justify-between text-emerald-400">
+            <dt>{inviteDiscountPct}% invite discount</dt>
+            <dd>− {rupees(Math.round((quote.totalPaise * inviteDiscountPct) / 100))}</dd>
+          </div>
+        )}
         <div className="flex justify-between font-medium text-foreground border-t border-border pt-1.5">
           <dt>Total</dt>
-          <dd>{rupees(quote.totalPaise)}</dd>
+          <dd>{rupees(quote.totalPaise - Math.round((quote.totalPaise * inviteDiscountPct) / 100))}</dd>
         </div>
       </dl>
 
@@ -147,6 +157,8 @@ export default function Pricing() {
   const { data: plansData, isLoading: plansLoading, isError: plansError } = useGetBillingPlans();
   const { data: status } = useGetSubscriptionStatus();
   const { data: wallet } = useGetCredits();
+  const { data: referral } = useGetReferral();
+  const inviteDiscountPct = referral?.nextDiscountPct ?? 0;
   const createOrder = useCreateBillingOrder();
   const verify = useVerifyBillingPayment();
   const [busyKey, setBusyKey] = useState<string | null>(null);
@@ -160,6 +172,7 @@ export default function Pricing() {
     Promise.all([
       queryClient.invalidateQueries({ queryKey: getGetSubscriptionStatusQueryKey() }),
       queryClient.invalidateQueries({ queryKey: getGetCreditsQueryKey() }),
+      queryClient.invalidateQueries({ queryKey: getGetReferralQueryKey() }),
     ]);
 
   /** One checkout flow for plans, top-up packs and single-query credits. The server decides the price. */
@@ -268,6 +281,12 @@ export default function Pricing() {
           )}
         </div>
 
+        {inviteDiscountPct > 0 && (
+          <p className="mt-4 text-sm rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-foreground">
+            You earned a {inviteDiscountPct}% discount by inviting a friend. It is applied automatically at checkout (on one purchase).
+          </p>
+        )}
+
         {plansLoading && (
           <div className="flex justify-center py-16">
             <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
@@ -287,6 +306,7 @@ export default function Pricing() {
                   busy={busyKey === q.planId}
                   disabled={busyKey !== null}
                   renew={subscribed}
+                  inviteDiscountPct={inviteDiscountPct}
                   onBuy={() => void checkout(q.planId, { plan: q.planId })}
                 />
               ))}

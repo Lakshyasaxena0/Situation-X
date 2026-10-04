@@ -2,6 +2,7 @@ import { db, subscriptionsTable, paymentsTable } from "@workspace/db";
 import { and, eq, ne, sql } from "drizzle-orm";
 import { paywallEnabled } from "./billing.service.js";
 import { grantCredits } from "./credits.service.js";
+import { markRewardUsed, rewardReferrerForPayment } from "./referral.service.js";
 
 export type SubscriptionStatus = {
   active: boolean;
@@ -76,6 +77,11 @@ export async function activateOrder(orderId: string, paymentId: string): Promise
       // Keyed by the order id, so even a repeated delivery cannot add the credits twice.
       await grantCredits(payment.userId, payment.credits, payment.kind === "plan" ? "plan" : payment.kind === "topup" ? "topup" : "single", orderId, { plan: payment.plan, amountPaise: payment.amountPaise }, tx);
     }
+
+    // Referral: the discount this order carried is now spent, and if this person was invited by
+    // someone, that someone earns a discount for this (first qualifying) payment.
+    await markRewardUsed(tx, orderId);
+    await rewardReferrerForPayment(tx, payment);
 
     return { activated: true, userId: payment.userId, plan: payment.plan, kind: payment.kind, credits: payment.credits } as const;
   });

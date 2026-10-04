@@ -1629,12 +1629,51 @@ export const CreateBillingOrderBody = zod
 export const CreateBillingOrderResponse = zod.object({
   orderId: zod.string(),
   keyId: zod.string(),
-  amountPaise: zod.number(),
+  amountPaise: zod
+    .number()
+    .describe("What is actually charged, after any referral discount"),
+  listPricePaise: zod.number().describe("Price before the referral discount"),
+  referralDiscountPct: zod.number(),
+  referralDiscountPaise: zod.number(),
   currency: zod.string(),
   kind: zod.enum(["plan", "topup", "single"]),
   product: zod.string(),
   credits: zod.number(),
   description: zod.string(),
+});
+
+/**
+ * @summary Invite a friend - the signed-in user's invite code, how many friends joined and paid, and the discount waiting for their next purchase
+ */
+export const GetReferralResponse = zod.object({
+  code: zod.string().describe("The user's invite code"),
+  rewardPct: zod.number().describe("Discount earned for each friend who pays"),
+  minPaymentPaise: zod
+    .number()
+    .describe("Smallest first payment by the friend that earns the discount"),
+  invited: zod.number().describe("Friends who applied the code"),
+  converted: zod
+    .number()
+    .describe("Friends who paid (discounts earned so far)"),
+  discountsAvailable: zod.number(),
+  nextDiscountPct: zod
+    .number()
+    .describe("Discount that will be applied to the next purchase (0 if none)"),
+  referredBy: zod
+    .boolean()
+    .describe("This user already applied someone's invite code"),
+});
+
+/**
+ * @summary Apply a friend's invite code (once, before the first payment)
+ */
+export const RedeemReferralCodeBody = zod.object({
+  code: zod.string(),
+});
+
+export const RedeemReferralCodeResponse = zod.object({
+  applied: zod.boolean(),
+  message: zod.string(),
 });
 
 /**

@@ -298,6 +298,56 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /referral:
+    get:
+      operationId: getReferral
+      tags: [billing]
+      summary: Invite a friend - the signed-in user's invite code, how many friends joined and paid, and the discount waiting for their next purchase
+      responses:
+        "200":
+          description: Referral summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReferralSummary"
+
+  /referral/redeem:
+    post:
+      operationId: redeemReferralCode
+      tags: [billing]
+      summary: Apply a friend's invite code (once, before the first payment)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RedeemReferralRequest"
+      responses:
+        "200":
+          description: Code applied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RedeemReferralResponse"
+        "400":
+          description: Missing code, or the user's own code
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Unknown code
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Already used a code, or already paid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /billing/verify:
     post:
       operationId: verifyBillingPayment
@@ -1242,6 +1292,14 @@ components:
           type: string
         amountPaise:
           type: integer
+          description: What is actually charged, after any referral discount
+        listPricePaise:
+          type: integer
+          description: Price before the referral discount
+        referralDiscountPct:
+          type: integer
+        referralDiscountPaise:
+          type: integer
         currency:
           type: string
         kind:
@@ -1257,6 +1315,9 @@ components:
         - orderId
         - keyId
         - amountPaise
+        - listPricePaise
+        - referralDiscountPct
+        - referralDiscountPaise
         - currency
         - kind
         - product
@@ -1363,6 +1424,61 @@ components:
         - total
         - limit
         - offset
+
+    ReferralSummary:
+      type: object
+      properties:
+        code:
+          type: string
+          description: The user's invite code
+        rewardPct:
+          type: integer
+          description: Discount earned for each friend who pays
+        minPaymentPaise:
+          type: integer
+          description: Smallest first payment by the friend that earns the discount
+        invited:
+          type: integer
+          description: Friends who applied the code
+        converted:
+          type: integer
+          description: Friends who paid (discounts earned so far)
+        discountsAvailable:
+          type: integer
+        nextDiscountPct:
+          type: integer
+          description: Discount that will be applied to the next purchase (0 if none)
+        referredBy:
+          type: boolean
+          description: This user already applied someone's invite code
+      required:
+        - code
+        - rewardPct
+        - minPaymentPaise
+        - invited
+        - converted
+        - discountsAvailable
+        - nextDiscountPct
+        - referredBy
+
+    RedeemReferralRequest:
+      type: object
+      properties:
+        code:
+          type: string
+      required:
+        - code
+
+    RedeemReferralResponse:
+      type: object
+      properties:
+        applied:
+          type: boolean
+        message:
+          type: string
+      required:
+        - applied
+        - message
 
     ErrorResponse:
       type: object

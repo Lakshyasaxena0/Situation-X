@@ -1,6 +1,6 @@
 import { Link, useLocation } from "wouter";
 import { useClerk, useUser } from "@clerk/react";
-import { History, MessageSquare, Menu, FlaskConical, LogOut, CreditCard } from "lucide-react";
+import { History, MessageSquare, Menu, FlaskConical, LogOut, CreditCard, Gift } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -27,6 +27,7 @@ export function Shell({ children }: ShellProps) {
     { href: "/history", label: "History", icon: History },
     { href: "/feedback", label: "Feedback", icon: MessageSquare },
     { href: "/pricing", label: "Plans & credits", icon: CreditCard },
+    { href: "/invite", label: "Invite a friend", icon: Gift },
   ];
 
   function isActive(href: string) {

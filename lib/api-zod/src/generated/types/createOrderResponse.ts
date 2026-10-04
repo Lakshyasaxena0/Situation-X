@@ -10,7 +10,12 @@ import type { CreateOrderResponseKind } from "./createOrderResponseKind";
 export interface CreateOrderResponse {
   orderId: string;
   keyId: string;
+  /** What is actually charged, after any referral discount */
   amountPaise: number;
+  /** Price before the referral discount */
+  listPricePaise: number;
+  referralDiscountPct: number;
+  referralDiscountPaise: number;
   currency: string;
   kind: CreateOrderResponseKind;
   product: string;

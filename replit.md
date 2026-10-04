@@ -108,3 +108,15 @@ Razorpay Orders API via `src/lib/razorpay.ts`; routes in `src/routes/billing.ts`
   for the higher AI levels: `GROQ_MODEL_DEEP`, `GROQ_MODEL_EXPERT`.
 - Razorpay dashboard webhook URL: `https://<your-domain>/api/billing/webhook`, events `payment.captured`
   and `order.paid`, secret = `RAZORPAY_WEBHOOK_SECRET`.
+
+### Invite a friend (referral)
+- Every user has an 8-character code and a link (`https://<site>/?ref=CODE`); the "Invite a friend" page (`/invite`)
+  shows them with copy / share buttons and the counts. The link is remembered in the browser through sign-up and
+  applied once right after sign-in (`POST /api/referral/redeem`); a code can also be typed on the Invite page.
+- A code can be applied once per user, never to oneself, and only before that user's first payment.
+- When the invited friend makes their first qualifying payment (>= `REFERRAL_MIN_PAYMENT_INR`, default 100), the
+  person who invited them earns `REFERRAL_REWARD_PCT` (default 20) % off their NEXT purchase (plan, top-up or
+  single-query credits). One friend = one discount; one discount is used per order, applied on the server in
+  `POST /api/billing/order` (the order response shows `listPricePaise`, `referralDiscountPct`, `amountPaise`).
+- A discount is held by an unpaid order for 2 hours and then becomes usable again; a failed order releases it at once.
+- Tables `referral_codes`, `referrals`, `referral_rewards`: run `pnpm --filter @workspace/db run push` after deploying.
