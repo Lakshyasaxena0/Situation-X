@@ -23,4 +23,6 @@ export interface BillingQuote {
   gstPaise: number;
   totalPaise: number;
   effectivePerMonthPaise: number;
+  /** Credits added to the wallet when this plan is paid */
+  credits: number;
 }

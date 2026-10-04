@@ -6,9 +6,16 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { BillingQuote } from "./billingQuote";
+import type { CostTable } from "./costTable";
+import type { CreditPackQuote } from "./creditPackQuote";
+import type { SingleQueryRate } from "./singleQueryRate";
 
 export interface BillingPlansResponse {
   currency: string;
   paywallEnabled: boolean;
   plans: BillingQuote[];
+  /** Top-up packs (subscribers only) */
+  packs: CreditPackQuote[];
+  single: SingleQueryRate;
+  costs: CostTable;
 }

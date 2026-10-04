@@ -1,6 +1,7 @@
 import { db, subscriptionsTable, paymentsTable } from "@workspace/db";
 import { and, eq, ne, sql } from "drizzle-orm";
-import { isFreeUser, paywallEnabled } from "./billing.service.js";
+import { paywallEnabled } from "./billing.service.js";
+import { grantCredits } from "./credits.service.js";
 
 export type SubscriptionStatus = {
   active: boolean;
@@ -34,18 +35,13 @@ export async function getSubscriptionStatus(userId: string): Promise<Subscriptio
   };
 }
 
-/** True when the user may use paid features right now. */
-export async function hasAccess(userId: string): Promise<boolean> {
-  if (!paywallEnabled() || isFreeUser(userId)) return true;
-  return (await getSubscriptionStatus(userId)).active;
-}
-
 export type ActivationResult =
-  | { activated: true; userId: string; plan: string }
+  | { activated: true; userId: string; plan: string; kind: string; credits: number }
   | { activated: false; reason: "unknown_order" | "already_processed" };
 
 /**
- * Marks an order as paid and extends the owner's subscription, exactly once.
+ * Marks an order as paid and delivers what was bought, exactly once: a plan extends the
+ * subscription and adds its credits, a top-up or single-query purchase only adds credits.
  * The browser callback and the webhook can both arrive (in any order, even together); only the
  * caller that flips the payment from "created" to "paid" extends the period.
  * A purchase made while a subscription is still running is added on top of the remaining time.
@@ -63,18 +59,24 @@ export async function activateOrder(orderId: string, paymentId: string): Promise
       return { activated: false, reason: existing ? "already_processed" : "unknown_order" } as const;
     }
 
-    await tx
-      .insert(subscriptionsTable)
-      .values({ userId: payment.userId, plan: payment.plan, currentPeriodEnd: addMonths(new Date(), payment.months) })
-      .onConflictDoUpdate({
-        target: subscriptionsTable.userId,
-        set: {
-          plan: payment.plan,
-          currentPeriodEnd: sql`GREATEST(${subscriptionsTable.currentPeriodEnd}, now()) + make_interval(months => ${payment.months})`,
-          updatedAt: new Date(),
-        },
-      });
+    if (payment.kind === "plan" && payment.months > 0) {
+      await tx
+        .insert(subscriptionsTable)
+        .values({ userId: payment.userId, plan: payment.plan, currentPeriodEnd: addMonths(new Date(), payment.months) })
+        .onConflictDoUpdate({
+          target: subscriptionsTable.userId,
+          set: {
+            plan: payment.plan,
+            currentPeriodEnd: sql`GREATEST(${subscriptionsTable.currentPeriodEnd}, now()) + make_interval(months => ${payment.months})`,
+            updatedAt: new Date(),
+          },
+        });
+    }
+    if (payment.credits > 0) {
+      // Keyed by the order id, so even a repeated delivery cannot add the credits twice.
+      await grantCredits(payment.userId, payment.credits, payment.kind === "plan" ? "plan" : payment.kind === "topup" ? "topup" : "single", orderId, { plan: payment.plan, amountPaise: payment.amountPaise }, tx);
+    }
 
-    return { activated: true, userId: payment.userId, plan: payment.plan } as const;
+    return { activated: true, userId: payment.userId, plan: payment.plan, kind: payment.kind, credits: payment.credits } as const;
   });
 }

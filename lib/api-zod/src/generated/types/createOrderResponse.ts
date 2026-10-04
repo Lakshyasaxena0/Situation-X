@@ -5,13 +5,15 @@
  * Situation X - AI + Astrology Situation Analysis API
  * OpenAPI spec version: 0.1.0
  */
-import type { BillingQuote } from "./billingQuote";
+import type { CreateOrderResponseKind } from "./createOrderResponseKind";
 
 export interface CreateOrderResponse {
   orderId: string;
   keyId: string;
   amountPaise: number;
   currency: string;
-  plan: string;
-  quote: BillingQuote;
+  kind: CreateOrderResponseKind;
+  product: string;
+  credits: number;
+  description: string;
 }

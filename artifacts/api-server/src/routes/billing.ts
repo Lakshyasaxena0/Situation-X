@@ -2,7 +2,23 @@ import { Router, type Request } from "express";
 import { db, paymentsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { currentUserId } from "../middlewares/requireUser.js";
-import { allQuotes, isPlanId, paywallEnabled, quoteFor } from "../services/billing.service.js";
+import {
+  allQuotes,
+  allTopupQuotes,
+  isPackId,
+  isPlanId,
+  isValidSingleCredits,
+  paywallEnabled,
+  quoteFor,
+  singleQuote,
+  topupQuote,
+  SINGLE_MAX_CREDITS,
+  SINGLE_MIN_CREDITS,
+  type CreditQuote,
+  type Quote,
+} from "../services/billing.service.js";
+import { AI_COSTS, DEPTH_LABELS, MODULE_COSTS } from "../services/credit-cost.service.js";
+import { billingActiveFor, getBalance, recentLedger } from "../services/credits.service.js";
 import { activateOrder, getSubscriptionStatus } from "../services/subscription.service.js";
 import {
   createOrder,
@@ -16,7 +32,24 @@ import {
 export const billingPublicRouter = Router();
 
 billingPublicRouter.get("/billing/plans", (_req, res) => {
-  res.json({ currency: "INR", paywallEnabled: paywallEnabled(), plans: allQuotes() });
+  const single = singleQuote(SINGLE_MIN_CREDITS);
+  res.json({
+    currency: "INR",
+    paywallEnabled: paywallEnabled(),
+    plans: allQuotes(),
+    packs: allTopupQuotes(),
+    single: { minCredits: SINGLE_MIN_CREDITS, maxCredits: SINGLE_MAX_CREDITS, perCreditPaise: single.perCreditPaise },
+    costs: {
+      modules: [
+        { label: "ASTRO - Prashna chart (always)", credits: MODULE_COSTS.astro },
+        { label: "ASTRO - each extra chart (D3 / D9 / D10)", credits: MODULE_COSTS.astroExtraChart },
+        { label: "AJIT - intent", credits: MODULE_COSTS.ajit },
+        { label: "MANU - emotion", credits: MODULE_COSTS.manu },
+        { label: "SIVI - path simulation", credits: MODULE_COSTS.sivi },
+      ],
+      ai: (Object.keys(AI_COSTS) as (keyof typeof AI_COSTS)[]).map((d) => ({ label: DEPTH_LABELS[d], credits: AI_COSTS[d] })),
+    },
+  });
 });
 
 billingPublicRouter.post("/billing/webhook", async (req: Request & { rawBody?: Buffer }, res, next) => {
@@ -50,17 +83,52 @@ const router = Router();
 
 router.get("/billing/status", async (_req, res, next) => {
   try {
-    res.json(await getSubscriptionStatus(currentUserId(res)));
+    const userId = currentUserId(res);
+    res.json({ ...(await getSubscriptionStatus(userId)), creditBalance: await getBalance(userId) });
   } catch (err) {
     next(err);
   }
 });
 
+router.get("/billing/credits", async (_req, res, next) => {
+  try {
+    const userId = currentUserId(res);
+    const [balance, ledger] = await Promise.all([getBalance(userId), recentLedger(userId, 25)]);
+    res.json({ balance, billingActive: billingActiveFor(userId), ledger });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/** Resolves what the browser asked to buy into a server-side price. The browser never sends an amount. */
+function resolveProduct(body: Record<string, unknown>):
+  | { ok: true; kind: "plan"; id: string; quote: Quote; amountPaise: number; months: number; credits: number }
+  | { ok: true; kind: "topup" | "single"; id: string; quote: CreditQuote; amountPaise: number; months: 0; credits: number }
+  | { ok: false; error: string; message: string; status: number } {
+  const given = [body.plan, body.pack, body.singleCredits].filter((v) => v !== undefined).length;
+  if (given !== 1) return { ok: false, status: 400, error: "invalid_product", message: "Choose exactly one of plan, pack or singleCredits." };
+  if (body.plan !== undefined) {
+    if (!isPlanId(body.plan)) return { ok: false, status: 400, error: "invalid_plan", message: "Unknown plan." };
+    const quote = quoteFor(body.plan);
+    return { ok: true, kind: "plan", id: body.plan, quote, amountPaise: quote.totalPaise, months: quote.months, credits: quote.credits };
+  }
+  if (body.pack !== undefined) {
+    if (!isPackId(body.pack)) return { ok: false, status: 400, error: "invalid_pack", message: "Unknown credit pack." };
+    const quote = topupQuote(body.pack);
+    return { ok: true, kind: "topup", id: body.pack, quote, amountPaise: quote.totalPaise, months: 0, credits: quote.credits };
+  }
+  if (!isValidSingleCredits(body.singleCredits)) {
+    return { ok: false, status: 400, error: "invalid_credits", message: `singleCredits must be a whole number from ${SINGLE_MIN_CREDITS} to ${SINGLE_MAX_CREDITS}.` };
+  }
+  const quote = singleQuote(body.singleCredits);
+  return { ok: true, kind: "single", id: "single", quote, amountPaise: quote.totalPaise, months: 0, credits: quote.credits };
+}
+
 router.post("/billing/order", async (req, res, next) => {
   try {
-    const plan = (req.body as { plan?: unknown } | undefined)?.plan;
-    if (!isPlanId(plan)) {
-      res.status(400).json({ error: "invalid_plan", message: "Unknown plan." });
+    const product = resolveProduct((req.body ?? {}) as Record<string, unknown>);
+    if (!product.ok) {
+      res.status(product.status).json({ error: product.error, message: product.message });
       return;
     }
     if (!razorpayConfigured()) {
@@ -69,13 +137,18 @@ router.post("/billing/order", async (req, res, next) => {
     }
 
     const userId = currentUserId(res);
-    const quote = quoteFor(plan);
+    // Top-up packs are the subscriber price; everyone else buys at the single-query rate.
+    if (product.kind === "topup" && !(await getSubscriptionStatus(userId)).active) {
+      res.status(403).json({ error: "subscription_required", message: "Top-up packs are for subscribers. Pick a plan, or buy credits for a single query." });
+      return;
+    }
+
     let order;
     try {
       order = await createOrder({
-        amountPaise: quote.totalPaise,
+        amountPaise: product.amountPaise,
         receipt: `sx_${Date.now().toString(36)}_${userId.slice(-10)}`.slice(0, 40),
-        notes: { userId, plan },
+        notes: { userId, product: product.id, kind: product.kind },
       });
     } catch (err) {
       req.log.error({ err }, "Razorpay order creation failed");
@@ -86,14 +159,25 @@ router.post("/billing/order", async (req, res, next) => {
     await db.insert(paymentsTable).values({
       userId,
       orderId: order.id,
-      plan,
-      months: quote.months,
-      amountPaise: quote.totalPaise,
+      plan: product.id,
+      kind: product.kind,
+      months: product.months,
+      credits: product.credits,
+      amountPaise: product.amountPaise,
       currency: "INR",
-      quote,
+      quote: product.quote,
     });
 
-    res.json({ orderId: order.id, keyId: razorpayKeyId(), amountPaise: quote.totalPaise, currency: "INR", plan, quote });
+    res.json({
+      orderId: order.id,
+      keyId: razorpayKeyId(),
+      amountPaise: product.amountPaise,
+      currency: "INR",
+      kind: product.kind,
+      product: product.id,
+      credits: product.credits,
+      description: product.kind === "plan" ? `${(product.quote as Quote).label} subscription` : `${product.credits} credits`,
+    });
   } catch (err) {
     next(err);
   }
@@ -128,7 +212,7 @@ router.post("/billing/verify", async (req, res, next) => {
       return;
     }
     // "already_processed" is fine: the webhook got there first.
-    res.json(await getSubscriptionStatus(userId));
+    res.json({ ...(await getSubscriptionStatus(userId)), creditBalance: await getBalance(userId) });
   } catch (err) {
     next(err);
   }

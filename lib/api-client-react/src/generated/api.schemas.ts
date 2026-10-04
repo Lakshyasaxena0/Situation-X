@@ -9,6 +9,19 @@ export interface HealthStatus {
   status: string;
 }
 
+/**
+ * How deeply the AI should reason. "auto" (default) picks the level from how complex the question is. Deeper levels cost more credits.
+ */
+export type AnalyzeRequestDepth =
+  (typeof AnalyzeRequestDepth)[keyof typeof AnalyzeRequestDepth];
+
+export const AnalyzeRequestDepth = {
+  auto: "auto",
+  standard: "standard",
+  deep: "deep",
+  expert: "expert",
+} as const;
+
 export interface AnalyzeRequest {
   /** The situation to analyze (min 10 characters) */
   situation: string;
@@ -16,6 +29,8 @@ export interface AnalyzeRequest {
   latitude?: number;
   /** Optional longitude of where the question is asked (default New Delhi) */
   longitude?: number;
+  /** How deeply the AI should reason. "auto" (default) picks the level from how complex the question is. Deeper levels cost more credits. */
+  depth?: AnalyzeRequestDepth;
 }
 
 export type IntentResultIntent =
@@ -365,6 +380,52 @@ export interface Synthesis {
   weights?: SynthesisWeights;
 }
 
+export type CreditsUsedDepth =
+  (typeof CreditsUsedDepth)[keyof typeof CreditsUsedDepth];
+
+export const CreditsUsedDepth = {
+  standard: "standard",
+  deep: "deep",
+  expert: "expert",
+} as const;
+
+export type CreditsUsedDepthChosen =
+  (typeof CreditsUsedDepthChosen)[keyof typeof CreditsUsedDepthChosen];
+
+export const CreditsUsedDepthChosen = {
+  auto: "auto",
+  user: "user",
+} as const;
+
+export type CostLineKey = (typeof CostLineKey)[keyof typeof CostLineKey];
+
+export const CostLineKey = {
+  astro: "astro",
+  ajit: "ajit",
+  manu: "manu",
+  sivi: "sivi",
+  ai: "ai",
+} as const;
+
+export interface CostLine {
+  key: CostLineKey;
+  label: string;
+  credits: number;
+  note: string;
+}
+
+/**
+ * What this analysis cost. charged is 0 while billing is off.
+ */
+export interface CreditsUsed {
+  billingActive: boolean;
+  charged: number;
+  balance: number | null;
+  depth: CreditsUsedDepth;
+  depthChosen: CreditsUsedDepthChosen;
+  lines: CostLine[];
+}
+
 export interface AnalysisResult {
   id: number;
   situation: string;
@@ -376,6 +437,7 @@ export interface AnalysisResult {
   overallScore: number;
   summary: string;
   synthesis?: Synthesis;
+  credits?: CreditsUsed;
   /** When the app will ask how the prediction turned out */
   followUpAt?: string;
   createdAt: string;
@@ -439,12 +501,139 @@ export interface BillingQuote {
   gstPaise: number;
   totalPaise: number;
   effectivePerMonthPaise: number;
+  /** Credits added to the wallet when this plan is paid */
+  credits: number;
+}
+
+export type CreditPackQuoteKind =
+  (typeof CreditPackQuoteKind)[keyof typeof CreditPackQuoteKind];
+
+export const CreditPackQuoteKind = {
+  topup: "topup",
+  single: "single",
+} as const;
+
+export type CreditPackQuotePackId =
+  | (typeof CreditPackQuotePackId)[keyof typeof CreditPackQuotePackId]
+  | null;
+
+export const CreditPackQuotePackId = {
+  topup_100: "topup_100",
+  topup_300: "topup_300",
+  topup_1000: "topup_1000",
+} as const;
+
+/**
+ * Price of a credit-only purchase. All money values are integer paise (INR).
+ */
+export interface CreditPackQuote {
+  kind: CreditPackQuoteKind;
+  packId: CreditPackQuotePackId;
+  credits: number;
+  currency: string;
+  grossPaise: number;
+  discountPct: number;
+  discountPaise: number;
+  gstPct: number;
+  gstPaise: number;
+  totalPaise: number;
+  perCreditPaise: number;
+}
+
+/**
+ * Credits bought without a subscription, at a higher per-credit price
+ */
+export interface SingleQueryRate {
+  minCredits: number;
+  maxCredits: number;
+  perCreditPaise: number;
+}
+
+export interface CostTableRow {
+  label: string;
+  credits: number;
+}
+
+/**
+ * What each module and each reasoning level costs
+ */
+export interface CostTable {
+  modules: CostTableRow[];
+  ai: CostTableRow[];
 }
 
 export interface BillingPlansResponse {
   currency: string;
   paywallEnabled: boolean;
   plans: BillingQuote[];
+  /** Top-up packs (subscribers only) */
+  packs: CreditPackQuote[];
+  single: SingleQueryRate;
+  costs: CostTable;
+}
+
+export type CostEstimateDepth =
+  (typeof CostEstimateDepth)[keyof typeof CostEstimateDepth];
+
+export const CostEstimateDepth = {
+  standard: "standard",
+  deep: "deep",
+  expert: "expert",
+} as const;
+
+export type CostEstimateDepthChosen =
+  (typeof CostEstimateDepthChosen)[keyof typeof CostEstimateDepthChosen];
+
+export const CostEstimateDepthChosen = {
+  auto: "auto",
+  user: "user",
+} as const;
+
+export interface CostEstimate {
+  total: number;
+  aiCredits: number;
+  depth: CostEstimateDepth;
+  depthChosen: CostEstimateDepthChosen;
+  lines: CostLine[];
+  /** False while credits are not being charged (everything is free) */
+  billingActive: boolean;
+  balance: number;
+  enough: boolean;
+}
+
+export interface InsufficientCreditsResponse {
+  error: string;
+  message: string;
+  required: number;
+  balance: number;
+  cost?: CostEstimate;
+}
+
+export type LedgerEntryReason =
+  (typeof LedgerEntryReason)[keyof typeof LedgerEntryReason];
+
+export const LedgerEntryReason = {
+  welcome: "welcome",
+  plan: "plan",
+  topup: "topup",
+  single: "single",
+  analysis: "analysis",
+  refund: "refund",
+} as const;
+
+export interface LedgerEntry {
+  id: number;
+  delta: number;
+  balanceAfter: number;
+  reason: LedgerEntryReason;
+  analysisId: number | null;
+  createdAt: string;
+}
+
+export interface CreditsResponse {
+  balance: number;
+  billingActive: boolean;
+  ledger: LedgerEntry[];
 }
 
 export interface SubscriptionStatus {
@@ -453,6 +642,7 @@ export interface SubscriptionStatus {
   currentPeriodEnd: string | null;
   daysLeft: number;
   paywallEnabled: boolean;
+  creditBalance?: number;
 }
 
 export type CreateOrderRequestPlan =
@@ -465,17 +655,47 @@ export const CreateOrderRequestPlan = {
   two_years: "two_years",
 } as const;
 
+/**
+ * Credit top-up pack (needs an active subscription)
+ */
+export type CreateOrderRequestPack =
+  (typeof CreateOrderRequestPack)[keyof typeof CreateOrderRequestPack];
+
+export const CreateOrderRequestPack = {
+  topup_100: "topup_100",
+  topup_300: "topup_300",
+  topup_1000: "topup_1000",
+} as const;
+
+/**
+ * Exactly one of plan, pack or singleCredits.
+ */
 export interface CreateOrderRequest {
-  plan: CreateOrderRequestPlan;
+  plan?: CreateOrderRequestPlan;
+  /** Credit top-up pack (needs an active subscription) */
+  pack?: CreateOrderRequestPack;
+  /** Buy this many credits at the single-query rate (no subscription needed) */
+  singleCredits?: number;
 }
+
+export type CreateOrderResponseKind =
+  (typeof CreateOrderResponseKind)[keyof typeof CreateOrderResponseKind];
+
+export const CreateOrderResponseKind = {
+  plan: "plan",
+  topup: "topup",
+  single: "single",
+} as const;
 
 export interface CreateOrderResponse {
   orderId: string;
   keyId: string;
   amountPaise: number;
   currency: string;
-  plan: string;
-  quote: BillingQuote;
+  kind: CreateOrderResponseKind;
+  product: string;
+  credits: number;
+  description: string;
 }
 
 export interface VerifyPaymentRequest {

@@ -25,6 +25,31 @@ paths:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
 
+  /analysis/estimate:
+    post:
+      operationId: estimateAnalysisCost
+      tags: [analysis]
+      summary: Exact credit cost of analysing this situation (modules involved + reasoning level), before anything is charged
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnalyzeRequest"
+      responses:
+        "200":
+          description: Cost breakdown
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CostEstimate"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /analysis/analyze:
     post:
       operationId: analyzeSituation
@@ -49,6 +74,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "402":
+          description: Not enough credits (the body carries the price and the balance)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InsufficientCreditsResponse"
         "500":
           description: Server error
           content:
@@ -217,11 +248,24 @@ paths:
               schema:
                 $ref: "#/components/schemas/SubscriptionStatus"
 
+  /billing/credits:
+    get:
+      operationId: getCredits
+      tags: [billing]
+      summary: Credit balance and recent credit history of the signed-in user
+      responses:
+        "200":
+          description: Wallet
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreditsResponse"
+
   /billing/order:
     post:
       operationId: createBillingOrder
       tags: [billing]
-      summary: Start a Razorpay checkout for a plan (the amount is computed on the server)
+      summary: Start a Razorpay checkout for a plan, a top-up pack or a single-query credit purchase (the amount is computed on the server)
       requestBody:
         required: true
         content:
@@ -236,7 +280,13 @@ paths:
               schema:
                 $ref: "#/components/schemas/CreateOrderResponse"
         "400":
-          description: Unknown plan
+          description: Unknown or ambiguous product
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Top-up packs need an active subscription
           content:
             application/json:
               schema:
@@ -371,6 +421,10 @@ components:
         longitude:
           type: number
           description: Optional longitude of where the question is asked (default New Delhi)
+        depth:
+          type: string
+          enum: [auto, standard, deep, expert]
+          description: How deeply the AI should reason. "auto" (default) picks the level from how complex the question is. Deeper levels cost more credits.
       required:
         - situation
 
@@ -701,6 +755,8 @@ components:
           type: string
         synthesis:
           $ref: "#/components/schemas/Synthesis"
+        credits:
+          $ref: "#/components/schemas/CreditsUsed"
         followUpAt:
           type: string
           description: When the app will ask how the prediction turned out
@@ -916,7 +972,11 @@ components:
           type: integer
         effectivePerMonthPaise:
           type: integer
+        credits:
+          type: integer
+          description: Credits added to the wallet when this plan is paid
       required:
+        - credits
         - planId
         - label
         - months
@@ -941,10 +1001,198 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/BillingQuote"
+        packs:
+          type: array
+          description: Top-up packs (subscribers only)
+          items:
+            $ref: "#/components/schemas/CreditPackQuote"
+        single:
+          $ref: "#/components/schemas/SingleQueryRate"
+        costs:
+          $ref: "#/components/schemas/CostTable"
       required:
         - currency
         - paywallEnabled
         - plans
+        - packs
+        - single
+        - costs
+
+    CreditPackQuote:
+      type: object
+      description: Price of a credit-only purchase. All money values are integer paise (INR).
+      properties:
+        kind:
+          type: string
+          enum: [topup, single]
+        packId:
+          type: string
+          nullable: true
+          enum: [topup_100, topup_300, topup_1000]
+        credits:
+          type: integer
+        currency:
+          type: string
+        grossPaise:
+          type: integer
+        discountPct:
+          type: number
+        discountPaise:
+          type: integer
+        gstPct:
+          type: number
+        gstPaise:
+          type: integer
+        totalPaise:
+          type: integer
+        perCreditPaise:
+          type: integer
+      required: [kind, packId, credits, currency, grossPaise, discountPct, discountPaise, gstPct, gstPaise, totalPaise, perCreditPaise]
+
+    SingleQueryRate:
+      type: object
+      description: Credits bought without a subscription, at a higher per-credit price
+      properties:
+        minCredits:
+          type: integer
+        maxCredits:
+          type: integer
+        perCreditPaise:
+          type: integer
+      required: [minCredits, maxCredits, perCreditPaise]
+
+    CostTableRow:
+      type: object
+      properties:
+        label:
+          type: string
+        credits:
+          type: integer
+      required: [label, credits]
+
+    CostTable:
+      type: object
+      description: What each module and each reasoning level costs
+      properties:
+        modules:
+          type: array
+          items:
+            $ref: "#/components/schemas/CostTableRow"
+        ai:
+          type: array
+          items:
+            $ref: "#/components/schemas/CostTableRow"
+      required: [modules, ai]
+
+    CostLine:
+      type: object
+      properties:
+        key:
+          type: string
+          enum: [astro, ajit, manu, sivi, ai]
+        label:
+          type: string
+        credits:
+          type: integer
+        note:
+          type: string
+      required: [key, label, credits, note]
+
+    CostEstimate:
+      type: object
+      properties:
+        total:
+          type: integer
+        aiCredits:
+          type: integer
+        depth:
+          type: string
+          enum: [standard, deep, expert]
+        depthChosen:
+          type: string
+          enum: [auto, user]
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/CostLine"
+        billingActive:
+          type: boolean
+          description: False while credits are not being charged (everything is free)
+        balance:
+          type: integer
+        enough:
+          type: boolean
+      required: [total, aiCredits, depth, depthChosen, lines, billingActive, balance, enough]
+
+    CreditsUsed:
+      type: object
+      description: What this analysis cost. charged is 0 while billing is off.
+      properties:
+        billingActive:
+          type: boolean
+        charged:
+          type: integer
+        balance:
+          type: integer
+          nullable: true
+        depth:
+          type: string
+          enum: [standard, deep, expert]
+        depthChosen:
+          type: string
+          enum: [auto, user]
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/CostLine"
+      required: [billingActive, charged, balance, depth, depthChosen, lines]
+
+    InsufficientCreditsResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+        required:
+          type: integer
+        balance:
+          type: integer
+        cost:
+          $ref: "#/components/schemas/CostEstimate"
+      required: [error, message, required, balance]
+
+    LedgerEntry:
+      type: object
+      properties:
+        id:
+          type: integer
+        delta:
+          type: integer
+        balanceAfter:
+          type: integer
+        reason:
+          type: string
+          enum: [welcome, plan, topup, single, analysis, refund]
+        analysisId:
+          type: integer
+          nullable: true
+        createdAt:
+          type: string
+      required: [id, delta, balanceAfter, reason, analysisId, createdAt]
+
+    CreditsResponse:
+      type: object
+      properties:
+        balance:
+          type: integer
+        billingActive:
+          type: boolean
+        ledger:
+          type: array
+          items:
+            $ref: "#/components/schemas/LedgerEntry"
+      required: [balance, billingActive, ledger]
 
     SubscriptionStatus:
       type: object
@@ -961,6 +1209,8 @@ components:
           type: integer
         paywallEnabled:
           type: boolean
+        creditBalance:
+          type: integer
       required:
         - active
         - plan
@@ -970,12 +1220,18 @@ components:
 
     CreateOrderRequest:
       type: object
+      description: Exactly one of plan, pack or singleCredits.
       properties:
         plan:
           type: string
           enum: [monthly, six_months, yearly, two_years]
-      required:
-        - plan
+        pack:
+          type: string
+          enum: [topup_100, topup_300, topup_1000]
+          description: Credit top-up pack (needs an active subscription)
+        singleCredits:
+          type: integer
+          description: Buy this many credits at the single-query rate (no subscription needed)
 
     CreateOrderResponse:
       type: object
@@ -988,17 +1244,24 @@ components:
           type: integer
         currency:
           type: string
-        plan:
+        kind:
           type: string
-        quote:
-          $ref: "#/components/schemas/BillingQuote"
+          enum: [plan, topup, single]
+        product:
+          type: string
+        credits:
+          type: integer
+        description:
+          type: string
       required:
         - orderId
         - keyId
         - amountPaise
         - currency
-        - plan
-        - quote
+        - kind
+        - product
+        - credits
+        - description
 
     VerifyPaymentRequest:
       type: object

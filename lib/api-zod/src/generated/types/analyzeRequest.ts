@@ -5,6 +5,7 @@
  * Situation X - AI + Astrology Situation Analysis API
  * OpenAPI spec version: 0.1.0
  */
+import type { AnalyzeRequestDepth } from "./analyzeRequestDepth";
 
 export interface AnalyzeRequest {
   /** The situation to analyze (min 10 characters) */
@@ -13,4 +14,6 @@ export interface AnalyzeRequest {
   latitude?: number;
   /** Optional longitude of where the question is asked (default New Delhi) */
   longitude?: number;
+  /** How deeply the AI should reason. "auto" (default) picks the level from how complex the question is. Deeper levels cost more credits. */
+  depth?: AnalyzeRequestDepth;
 }

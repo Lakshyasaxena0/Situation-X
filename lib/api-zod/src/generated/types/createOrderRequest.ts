@@ -5,8 +5,16 @@
  * Situation X - AI + Astrology Situation Analysis API
  * OpenAPI spec version: 0.1.0
  */
+import type { CreateOrderRequestPack } from "./createOrderRequestPack";
 import type { CreateOrderRequestPlan } from "./createOrderRequestPlan";
 
+/**
+ * Exactly one of plan, pack or singleCredits.
+ */
 export interface CreateOrderRequest {
-  plan: CreateOrderRequestPlan;
+  plan?: CreateOrderRequestPlan;
+  /** Credit top-up pack (needs an active subscription) */
+  pack?: CreateOrderRequestPack;
+  /** Buy this many credits at the single-query rate (no subscription needed) */
+  singleCredits?: number;
 }

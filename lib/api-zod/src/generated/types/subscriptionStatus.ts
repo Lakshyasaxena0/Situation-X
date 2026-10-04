@@ -12,4 +12,5 @@ export interface SubscriptionStatus {
   currentPeriodEnd: string | null;
   daysLeft: number;
   paywallEnabled: boolean;
+  creditBalance?: number;
 }

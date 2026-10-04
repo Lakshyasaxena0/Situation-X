@@ -80,19 +80,31 @@ charts used, and returns a refined score, summary, astrological insight, advice 
 - Without `GROQ_API_KEY`, or if Groq fails or times out, the answer comes from the engine + astrology alone
   (`synthesis.source = "engine"`)
 
-## Subscriptions & payments (Razorpay, INR)
-Prepaid, no auto-renewal: Monthly, 6 Months, 1 Year, 2 Years. Price logic lives in
-`artifacts/api-server/src/services/billing.service.ts` (`gross = monthly x months`, minus the plan
-discount, plus optional GST; integer paise, always computed on the server). Razorpay Orders API via
-`src/lib/razorpay.ts`; routes in `src/routes/billing.ts`; UI at `/pricing`.
-- Flow: `POST /api/billing/order` (plan id only) -> Razorpay Checkout in the browser ->
-  `POST /api/billing/verify` (HMAC signature check) activates the plan. `POST /api/billing/webhook`
-  is the backup (signature-verified; activates even if the browser closed). Both are idempotent.
-  Buying while a plan is running adds time on top of the remaining days.
-- Tables `subscriptions`, `payments`: run `pnpm --filter @workspace/db run push` after deploying.
-- Env vars: `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET`;
-  pricing `BILLING_MONTHLY_PRICE_INR` (default 199), `BILLING_DISCOUNT_PCT` (default `0,10,20,30` for 1/6/12/24 months),
-  `BILLING_GST_PCT` (default 0); `BILLING_PAYWALL=on` makes `POST /api/analysis/analyze` require an active
-  plan (402 otherwise; default off); `BILLING_FREE_USER_IDS` = comma list of Clerk ids that skip the paywall.
+## Subscriptions, credits & payments (Razorpay, INR)
+Prepaid, no auto-renewal. A **plan** (Monthly, 6 Months, 1 Year, 2 Years) gives access time, a discount that grows
+with length, and **credits** (`BILLING_CREDITS_PER_MONTH` x months). Every analysis spends credits; when they run
+out the user tops up. Price logic: `src/services/billing.service.ts` (integer paise, always computed on the server);
+credits: `src/services/credits.service.ts`; what an analysis costs: `src/services/credit-cost.service.ts`.
+Razorpay Orders API via `src/lib/razorpay.ts`; routes in `src/routes/billing.ts`; UI at `/pricing`.
+- **Cost of one analysis** = ASTRO (4, always; +2 per extra Prashna chart D3/D9/D10) + AJIT (1, if the intent was
+  recognised) + MANU (1, if an emotion was detected) + SIVI (2) + AI reasoning level (standard 4 / deep 8 / expert 14).
+  The level is `auto` (from question length, risk, emotion intensity, health/conflict) or chosen by the user
+  (`depth` in the request). `POST /api/analysis/estimate` returns the exact price before anything is charged.
+  The price is debited up front, atomically (balance can never go below zero); if the AI cannot answer, the AI part
+  is refunded and the user still gets the engine + astrology answer. A failed analysis is refunded in full.
+- **Who can buy what:** plans (anyone), top-up packs of 100/300/1000 credits (active subscribers only, cheaper per
+  credit), and "single query" credits (anyone, deliberately the highest price per credit) to push users to subscribe.
+  `POST /api/billing/order` takes exactly one of `plan`, `pack`, `singleCredits`; never an amount.
+- Flow: order -> Razorpay Checkout -> `POST /api/billing/verify` (HMAC check) delivers it. `POST /api/billing/webhook`
+  is the backup (signature-verified). Both are idempotent: the payment flips `created -> paid` once, and credit grants
+  are unique per (reason, order id) in `credit_ledger`.
+- Tables `subscriptions`, `payments` (+ `kind`, `credits`), `credit_wallets`, `credit_ledger`: run
+  `pnpm --filter @workspace/db run push` after deploying.
+- Env vars: `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET`; `BILLING_PAYWALL=on` starts
+  charging credits (default off = everything free, nothing debited); `BILLING_FREE_USER_IDS` = Clerk ids that are never charged.
+  Pricing: `BILLING_MONTHLY_PRICE_INR` (199), `BILLING_DISCOUNT_PCT` (`0,10,20,30`), `BILLING_GST_PCT` (0),
+  `BILLING_CREDITS_PER_MONTH` (150), `BILLING_WELCOME_CREDITS` (20, one time per new user),
+  `BILLING_TOPUP_RATE_INR` (1.35 per credit), `BILLING_SINGLE_RATE_INR` (3 per credit). Optional stronger models
+  for the higher AI levels: `GROQ_MODEL_DEEP`, `GROQ_MODEL_EXPERT`.
 - Razorpay dashboard webhook URL: `https://<your-domain>/api/billing/webhook`, events `payment.captured`
   and `order.paid`, secret = `RAZORPAY_WEBHOOK_SECRET`.

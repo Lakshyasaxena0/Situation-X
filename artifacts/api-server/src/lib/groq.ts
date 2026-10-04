@@ -39,10 +39,10 @@ function post(body: Record<string, unknown>): Promise<Response> {
  */
 export async function groqJsonCompletion(
   prompt: string,
-  options: { maxTokens?: number; temperature?: number } = {},
+  options: { maxTokens?: number; temperature?: number; model?: string } = {},
 ): Promise<string | null> {
   const request = {
-    model: process.env.GROQ_MODEL || DEFAULT_GROQ_MODEL,
+    model: options.model || process.env.GROQ_MODEL || DEFAULT_GROQ_MODEL,
     temperature: options.temperature ?? 0.3,
     max_completion_tokens: options.maxTokens ?? 500,
     messages: [{ role: "user", content: prompt }],

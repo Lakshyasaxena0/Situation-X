@@ -22,9 +22,11 @@ import type {
   AnalysisResult,
   AnalyzeRequest,
   BillingPlansResponse,
+  CostEstimate,
   CreateFeedbackRequest,
   CreateOrderRequest,
   CreateOrderResponse,
+  CreditsResponse,
   DeleteResponse,
   DueFollowUpsResponse,
   ErrorResponse,
@@ -33,6 +35,7 @@ import type {
   GetAnalysisHistoryParams,
   GetFeedbackListParams,
   HealthStatus,
+  InsufficientCreditsResponse,
   SubscriptionStatus,
   VerifyPaymentRequest,
 } from "./api.schemas";
@@ -122,6 +125,92 @@ export function useHealthCheck<
 }
 
 /**
+ * @summary Exact credit cost of analysing this situation (modules involved + reasoning level), before anything is charged
+ */
+export const getEstimateAnalysisCostUrl = () => {
+  return `/api/analysis/estimate`;
+};
+
+export const estimateAnalysisCost = async (
+  analyzeRequest: AnalyzeRequest,
+  options?: RequestInit,
+): Promise<CostEstimate> => {
+  return customFetch<CostEstimate>(getEstimateAnalysisCostUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(analyzeRequest),
+  });
+};
+
+export const getEstimateAnalysisCostMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof estimateAnalysisCost>>,
+    TError,
+    { data: BodyType<AnalyzeRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof estimateAnalysisCost>>,
+  TError,
+  { data: BodyType<AnalyzeRequest> },
+  TContext
+> => {
+  const mutationKey = ["estimateAnalysisCost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof estimateAnalysisCost>>,
+    { data: BodyType<AnalyzeRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return estimateAnalysisCost(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type EstimateAnalysisCostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof estimateAnalysisCost>>
+>;
+export type EstimateAnalysisCostMutationBody = BodyType<AnalyzeRequest>;
+export type EstimateAnalysisCostMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Exact credit cost of analysing this situation (modules involved + reasoning level), before anything is charged
+ */
+export const useEstimateAnalysisCost = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof estimateAnalysisCost>>,
+    TError,
+    { data: BodyType<AnalyzeRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof estimateAnalysisCost>>,
+  TError,
+  { data: BodyType<AnalyzeRequest> },
+  TContext
+> => {
+  return useMutation(getEstimateAnalysisCostMutationOptions(options));
+};
+
+/**
  * @summary Analyze a situation
  */
 export const getAnalyzeSituationUrl = () => {
@@ -141,7 +230,7 @@ export const analyzeSituation = async (
 };
 
 export const getAnalyzeSituationMutationOptions = <
-  TError = ErrorType<ErrorResponse>,
+  TError = ErrorType<ErrorResponse | InsufficientCreditsResponse>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -182,13 +271,15 @@ export type AnalyzeSituationMutationResult = NonNullable<
   Awaited<ReturnType<typeof analyzeSituation>>
 >;
 export type AnalyzeSituationMutationBody = BodyType<AnalyzeRequest>;
-export type AnalyzeSituationMutationError = ErrorType<ErrorResponse>;
+export type AnalyzeSituationMutationError = ErrorType<
+  ErrorResponse | InsufficientCreditsResponse
+>;
 
 /**
  * @summary Analyze a situation
  */
 export const useAnalyzeSituation = <
-  TError = ErrorType<ErrorResponse>,
+  TError = ErrorType<ErrorResponse | InsufficientCreditsResponse>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -872,7 +963,82 @@ export function useGetSubscriptionStatus<
 }
 
 /**
- * @summary Start a Razorpay checkout for a plan (the amount is computed on the server)
+ * @summary Credit balance and recent credit history of the signed-in user
+ */
+export const getGetCreditsUrl = () => {
+  return `/api/billing/credits`;
+};
+
+export const getCredits = async (
+  options?: RequestInit,
+): Promise<CreditsResponse> => {
+  return customFetch<CreditsResponse>(getGetCreditsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetCreditsQueryKey = () => {
+  return [`/api/billing/credits`] as const;
+};
+
+export const getGetCreditsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getCredits>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getCredits>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetCreditsQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getCredits>>> = ({
+    signal,
+  }) => getCredits({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getCredits>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetCreditsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getCredits>>
+>;
+export type GetCreditsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Credit balance and recent credit history of the signed-in user
+ */
+
+export function useGetCredits<
+  TData = Awaited<ReturnType<typeof getCredits>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getCredits>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetCreditsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Start a Razorpay checkout for a plan, a top-up pack or a single-query credit purchase (the amount is computed on the server)
  */
 export const getCreateBillingOrderUrl = () => {
   return `/api/billing/order`;
@@ -935,7 +1101,7 @@ export type CreateBillingOrderMutationBody = BodyType<CreateOrderRequest>;
 export type CreateBillingOrderMutationError = ErrorType<ErrorResponse>;
 
 /**
- * @summary Start a Razorpay checkout for a plan (the amount is computed on the server)
+ * @summary Start a Razorpay checkout for a plan, a top-up pack or a single-query credit purchase (the amount is computed on the server)
  */
 export const useCreateBillingOrder = <
   TError = ErrorType<ErrorResponse>,
