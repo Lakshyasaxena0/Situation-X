@@ -128,7 +128,10 @@ Razorpay Orders API via `src/lib/razorpay.ts`; routes in `src/routes/billing.ts`
 2. Razorpay dashboard -> Webhooks: URL `https://<your-domain>/api/billing/webhook`, events `payment.captured` and `order.paid`,
    choose a secret and set the same value as `RAZORPAY_WEBHOOK_SECRET`. This confirms payments even if the customer closes the
    browser before returning.
-3. Run `pnpm --filter @workspace/db run push` (billing and referral tables).
+3. Database tables: on Supabase open SQL Editor, paste the whole of `lib/db/supabase-setup.sql` and Run (safe to repeat; it keeps
+   existing data and adds only what is missing). Elsewhere `pnpm --filter @workspace/db run push` does the same.
+   `DATABASE_URL` = Supabase -> Connect -> connection string (the pooler one on port 6543 is fine). SSL is switched on
+   automatically for Supabase hosts (`DATABASE_SSL=on|off` overrides).
 4. Optional: `BILLING_WELCOME_CREDITS=0` (no free credits), `BILLING_FREE_USER_IDS=<your Clerk id>` (owner never charged),
    `BILLING_GST_PCT` once GST-registered.
 5. The server logs a warning at start if credits are charged but the keys (or the webhook secret) are missing.
