@@ -1,11 +1,11 @@
 /**
  * Pricing / billing script for Situation X.
  *
- * The product is a prepaid subscription in four durations. The price of a duration is:
+ * 1 rupee = 1 credit. The product is a prepaid subscription in four durations at fixed prices
+ * (rupees, before any GST): Monthly 150, 6 Months 850, 1 Year 1700, 2 Years 3400. Each plan gives
+ * as many credits as rupees paid (150 / 850 / 1700 / 3400), valid while the subscription runs.
  *
- *   gross    = monthly price x months
- *   discount = gross x duration discount %          (longer plans are cheaper per month)
- *   subtotal = gross - discount
+ *   subtotal = plan price
  *   gst      = subtotal x GST %                     (0 until the business is GST registered)
  *   total    = subtotal + gst                       <- what Razorpay charges
  *
@@ -13,19 +13,17 @@
  * customer can never choose their own amount. Rates are read from environment variables on every
  * call, so a price change needs a restart, not a code change:
  *
- *   BILLING_MONTHLY_PRICE_INR   price of one month in rupees          default 199
- *   BILLING_DISCOUNT_PCT        discounts for 1,6,12,24 months         default "0,10,20,30"
- *   BILLING_GST_PCT             GST added on top (0 = prices final)    default 0
- *   BILLING_PAYWALL             "on" to charge credits for analyses     default off (free)
+ *   BILLING_PLAN_PRICES_INR     prices for 1,6,12,24 months in rupees   default "150,850,1700,3400"
+ *   BILLING_CREDITS_PER_INR     credits given per rupee of plan price   default 1
+ *   BILLING_GST_PCT             GST added on top (0 = prices final)     default 0
+ *   BILLING_PAYWALL             "on" to charge credits for analyses      default off (free)
  *   BILLING_FREE_USER_IDS       comma list of Clerk user ids that never pay (owner/testing)
  *
  * Credits (an analysis costs credits, see credit-cost.service.ts):
- *   BILLING_CREDITS_PER_MONTH        credits a plan includes per month    default 150
  *   BILLING_WELCOME_CREDITS          one-time credits for a new user      default 20 (0 = none)
- *   BILLING_TOPUP_RATE_INR           price of one credit in a top-up pack default 1.35 (subscribers only)
+ *   BILLING_TOPUP_RATE_INR           price of one credit in a top-up pack default 1 (subscribers only)
  *   BILLING_SINGLE_RATE_INR          price of one credit bought without a subscription (the "single
- *                                    query" rate, deliberately higher)       default 3
- * Top-up packs are cheaper per credit the bigger they are (0%, 5%, 10% off).
+ *                                    query" rate, deliberately higher so users prefer a plan)   default 2
  */
 
 export const PLAN_IDS = ["monthly", "six_months", "yearly", "two_years"] as const;
@@ -38,20 +36,18 @@ const PLAN_DEFS: Record<PlanId, { label: string; months: number }> = {
   two_years: { label: "2 Years", months: 24 },
 };
 
-const DEFAULT_MONTHLY_PRICE_INR = 199;
-const DEFAULT_DISCOUNTS = [0, 10, 20, 30];
-
-const DEFAULT_CREDITS_PER_MONTH = 150;
+const DEFAULT_PLAN_PRICES_INR = [150, 850, 1700, 3400];
+const DEFAULT_CREDITS_PER_INR = 1;
 const DEFAULT_WELCOME_CREDITS = 20;
-const DEFAULT_TOPUP_RATE_INR = 1.35;
-const DEFAULT_SINGLE_RATE_INR = 3;
+const DEFAULT_TOPUP_RATE_INR = 1;
+const DEFAULT_SINGLE_RATE_INR = 2;
 
 export const PACK_IDS = ["topup_100", "topup_300", "topup_1000"] as const;
 export type PackId = (typeof PACK_IDS)[number];
 const PACK_DEFS: Record<PackId, { credits: number; discountPct: number }> = {
   topup_100: { credits: 100, discountPct: 0 },
-  topup_300: { credits: 300, discountPct: 5 },
-  topup_1000: { credits: 1000, discountPct: 10 },
+  topup_300: { credits: 300, discountPct: 0 },
+  topup_1000: { credits: 1000, discountPct: 0 },
 };
 export const SINGLE_MIN_CREDITS = 10;
 export const SINGLE_MAX_CREDITS = 100;
@@ -95,12 +91,13 @@ function numberFromEnv(name: string, fallback: number, min: number, max: number)
   return Number.isFinite(n) && n >= min && n <= max ? n : fallback;
 }
 
-function discountFor(index: number): number {
-  const raw = process.env.BILLING_DISCOUNT_PCT?.trim();
-  if (!raw) return DEFAULT_DISCOUNTS[index];
-  const parts = raw.split(",").map((s) => Number(s.trim()));
-  const v = parts[index];
-  return Number.isFinite(v) && v >= 0 && v <= 90 ? v : DEFAULT_DISCOUNTS[index];
+function planPriceInr(index: number): number {
+  const raw = process.env.BILLING_PLAN_PRICES_INR?.trim();
+  if (raw) {
+    const v = Number(raw.split(",")[index]?.trim());
+    if (Number.isFinite(v) && v >= 1 && v <= 1_000_000) return v;
+  }
+  return DEFAULT_PLAN_PRICES_INR[index];
 }
 
 export function isPlanId(value: unknown): value is PlanId {
@@ -110,13 +107,14 @@ export function isPlanId(value: unknown): value is PlanId {
 /** Pure given the environment: the full price breakdown for one plan. */
 export function quoteFor(planId: PlanId): Quote {
   const def = PLAN_DEFS[planId];
-  const monthlyPaise = Math.round(numberFromEnv("BILLING_MONTHLY_PRICE_INR", DEFAULT_MONTHLY_PRICE_INR, 1, 100_000) * 100);
-  const discountPct = discountFor(PLAN_IDS.indexOf(planId));
+  const monthlyPaise = Math.round(planPriceInr(0) * 100);
+  const subtotal = Math.round(planPriceInr(PLAN_IDS.indexOf(planId)) * 100);
   const gstPct = numberFromEnv("BILLING_GST_PCT", 0, 0, 40);
 
+  // "gross" is what the same months would cost at the monthly price; the saving is shown to the user.
   const grossPaise = monthlyPaise * def.months;
-  const discountPaise = Math.round((grossPaise * discountPct) / 100);
-  const subtotal = grossPaise - discountPaise;
+  const discountPaise = Math.max(0, grossPaise - subtotal);
+  const discountPct = grossPaise > 0 ? Math.round((discountPaise / grossPaise) * 100) : 0;
   const gstPaise = Math.round((subtotal * gstPct) / 100);
   const totalPaise = subtotal + gstPaise;
 
@@ -133,12 +131,12 @@ export function quoteFor(planId: PlanId): Quote {
     gstPaise,
     totalPaise,
     effectivePerMonthPaise: Math.round(totalPaise / def.months),
-    credits: creditsPerMonth() * def.months,
+    credits: Math.round((subtotal / 100) * creditsPerInr()),
   };
 }
 
-export function creditsPerMonth(): number {
-  return Math.round(numberFromEnv("BILLING_CREDITS_PER_MONTH", DEFAULT_CREDITS_PER_MONTH, 1, 100_000));
+export function creditsPerInr(): number {
+  return numberFromEnv("BILLING_CREDITS_PER_INR", DEFAULT_CREDITS_PER_INR, 0.1, 1000);
 }
 
 export function welcomeCredits(): number {

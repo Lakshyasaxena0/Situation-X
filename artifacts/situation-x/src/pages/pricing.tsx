@@ -318,7 +318,7 @@ export default function Pricing() {
           <>
             <h2 className="mt-10 text-sm font-semibold text-foreground">Top up credits</h2>
             <p className="text-xs text-muted-foreground mt-1">
-              {subscribed ? "Subscriber price. Bigger packs cost less per credit." : "Top-up packs are for subscribers. Pick a plan above first, or buy credits for a single query below."}
+              {subscribed ? `Subscriber price: ${rupees(packs[0].perCreditPaise)} per credit.` : "Top-up packs are for subscribers. Pick a plan above first, or buy credits for a single query below."}
             </p>
             <div className="mt-3 grid gap-3 sm:grid-cols-3">
               {packs.map((p: CreditPackQuote) => (
@@ -347,7 +347,7 @@ export default function Pricing() {
           <div className="mt-10 rounded-lg border border-border bg-card p-4">
             <h2 className="text-sm font-semibold text-foreground">Just one question? Buy credits for a single query</h2>
             <p className="text-xs text-muted-foreground mt-1">
-              No subscription needed. This is the highest per-credit price ({rupees(single.perCreditPaise)} per credit); a plan or a top-up is much cheaper if you will ask more than once.
+              No subscription needed. This is the highest per-credit price ({rupees(single.perCreditPaise)} per credit); a plan or a top-up costs less per credit if you will ask more than once.
             </p>
             <div className="mt-3 flex items-end gap-3 flex-wrap">
               <label className="text-xs text-muted-foreground">
