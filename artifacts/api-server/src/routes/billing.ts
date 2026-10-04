@@ -46,6 +46,8 @@ billingPublicRouter.get("/billing/plans", (_req, res) => {
   res.json({
     currency: "INR",
     paywallEnabled: paywallEnabled(),
+    // false until RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET are set: the UI shows "payments open soon"
+    paymentsConfigured: razorpayConfigured(),
     plans: allQuotes(),
     packs: allTopupQuotes(),
     single: { minCredits: SINGLE_MIN_CREDITS, maxCredits: SINGLE_MAX_CREDITS, perCreditPaise: single.perCreditPaise },

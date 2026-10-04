@@ -15,7 +15,7 @@ export type LedgerReason = "welcome" | "plan" | "topup" | "single" | "analysis" 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 type Executor = typeof db | Tx;
 
-/** Are credits charged for this user right now? (Off while BILLING_PAYWALL is not "on", and for owner/test accounts.) */
+/** Are credits charged for this user right now? (On by default; off when BILLING_PAYWALL=off, and for owner/test accounts.) */
 export function billingActiveFor(userId: string): boolean {
   return paywallEnabled() && !isFreeUser(userId);
 }

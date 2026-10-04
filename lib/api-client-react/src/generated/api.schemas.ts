@@ -565,6 +565,8 @@ export interface CostTable {
 export interface BillingPlansResponse {
   currency: string;
   paywallEnabled: boolean;
+  /** False until the payment gateway keys are set on the server */
+  paymentsConfigured: boolean;
   plans: BillingQuote[];
   /** Top-up packs (subscribers only) */
   packs: CreditPackQuote[];

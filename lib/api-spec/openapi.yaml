@@ -1047,6 +1047,9 @@ components:
           type: string
         paywallEnabled:
           type: boolean
+        paymentsConfigured:
+          type: boolean
+          description: False until the payment gateway keys are set on the server
         plans:
           type: array
           items:
@@ -1063,6 +1066,7 @@ components:
       required:
         - currency
         - paywallEnabled
+        - paymentsConfigured
         - plans
         - packs
         - single

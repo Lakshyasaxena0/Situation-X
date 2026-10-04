@@ -40,3 +40,22 @@ export function inviteLink(code: string): string {
   const base = import.meta.env.BASE_URL.replace(/\/$/, "");
   return `${window.location.origin}${base}/?ref=${code}`;
 }
+
+export function inviteMessage(code: string): string {
+  return `I use Situation X for clear decisions (AI + Vedic astrology). Join with my invite code ${code}: ${inviteLink(code)}`;
+}
+
+/** Opens the phone's share sheet, or WhatsApp when the browser has none. Resolves quietly if the user cancels. */
+export async function shareInvite(code: string): Promise<void> {
+  const link = inviteLink(code);
+  const message = inviteMessage(code);
+  if (typeof navigator !== "undefined" && navigator.share) {
+    try {
+      await navigator.share({ title: "Situation X", text: message, url: link });
+      return;
+    } catch (err) {
+      if ((err as { name?: string } | null)?.name === "AbortError") return; // the user closed the sheet
+    }
+  }
+  window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, "_blank", "noopener,noreferrer");
+}

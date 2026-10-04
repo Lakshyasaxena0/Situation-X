@@ -16,7 +16,7 @@
  *   BILLING_PLAN_PRICES_INR     prices for 1,6,12,24 months in rupees   default "150,850,1700,3400"
  *   BILLING_CREDITS_PER_INR     credits given per rupee of plan price   default 1
  *   BILLING_GST_PCT             GST added on top (0 = prices final)     default 0
- *   BILLING_PAYWALL             "on" to charge credits for analyses      default off (free)
+ *   BILLING_PAYWALL             "off" stops charging credits (everything free)   default on
  *   BILLING_FREE_USER_IDS       comma list of Clerk user ids that never pay (owner/testing)
  *
  * Credits (an analysis costs credits, see credit-cost.service.ts):
@@ -184,8 +184,10 @@ export function allQuotes(): Quote[] {
   return PLAN_IDS.map(quoteFor);
 }
 
+/** Credits are charged unless the owner switches it off explicitly (BILLING_PAYWALL=off). */
 export function paywallEnabled(): boolean {
-  return process.env.BILLING_PAYWALL?.trim().toLowerCase() === "on";
+  const v = process.env.BILLING_PAYWALL?.trim().toLowerCase();
+  return !(v === "off" || v === "false" || v === "0");
 }
 
 export function isFreeUser(userId: string): boolean {

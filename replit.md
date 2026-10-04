@@ -100,8 +100,8 @@ Razorpay Orders API via `src/lib/razorpay.ts`; routes in `src/routes/billing.ts`
   are unique per (reason, order id) in `credit_ledger`.
 - Tables `subscriptions`, `payments` (+ `kind`, `credits`), `credit_wallets`, `credit_ledger`: run
   `pnpm --filter @workspace/db run push` after deploying.
-- Env vars: `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET`; `BILLING_PAYWALL=on` starts
-  charging credits (default off = everything free, nothing debited); `BILLING_FREE_USER_IDS` = Clerk ids that are never charged.
+- Env vars: `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET`; credits are charged by default
+  (`BILLING_PAYWALL=off` makes everything free, nothing debited); `BILLING_FREE_USER_IDS` = Clerk ids that are never charged.
   Pricing: `BILLING_PLAN_PRICES_INR` (`150,850,1700,3400` for 1/6/12/24 months), `BILLING_GST_PCT` (0),
   `BILLING_CREDITS_PER_INR` (1 rupee = 1 credit), `BILLING_WELCOME_CREDITS` (20, one time per new user),
   `BILLING_TOPUP_RATE_INR` (1 per credit), `BILLING_SINGLE_RATE_INR` (2 per credit). Optional stronger models
@@ -120,3 +120,15 @@ Razorpay Orders API via `src/lib/razorpay.ts`; routes in `src/routes/billing.ts`
   `POST /api/billing/order` (the order response shows `listPricePaise`, `referralDiscountPct`, `amountPaise`).
 - A discount is held by an unpaid order for 2 hours and then becomes usable again; a failed order releases it at once.
 - Tables `referral_codes`, `referrals`, `referral_rewards`: run `pnpm --filter @workspace/db run push` after deploying.
+
+### Go-live checklist for payments
+1. Razorpay dashboard -> API keys: set `RAZORPAY_KEY_ID` and `RAZORPAY_KEY_SECRET` on the API server, restart. Nothing else
+   changes in the code: the plans page switches from "payments opening soon" to live buying by itself
+   (`paymentsConfigured` in `GET /api/billing/plans`).
+2. Razorpay dashboard -> Webhooks: URL `https://<your-domain>/api/billing/webhook`, events `payment.captured` and `order.paid`,
+   choose a secret and set the same value as `RAZORPAY_WEBHOOK_SECRET`. This confirms payments even if the customer closes the
+   browser before returning.
+3. Run `pnpm --filter @workspace/db run push` (billing and referral tables).
+4. Optional: `BILLING_WELCOME_CREDITS=0` (no free credits), `BILLING_FREE_USER_IDS=<your Clerk id>` (owner never charged),
+   `BILLING_GST_PCT` once GST-registered.
+5. The server logs a warning at start if credits are charged but the keys (or the webhook secret) are missing.

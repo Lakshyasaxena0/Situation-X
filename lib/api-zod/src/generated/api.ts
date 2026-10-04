@@ -1499,6 +1499,9 @@ export const DismissFollowUpResponse = zod.object({
 export const GetBillingPlansResponse = zod.object({
   currency: zod.string(),
   paywallEnabled: zod.boolean(),
+  paymentsConfigured: zod
+    .boolean()
+    .describe("False until the payment gateway keys are set on the server"),
   plans: zod.array(
     zod
       .object({

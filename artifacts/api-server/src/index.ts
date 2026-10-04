@@ -1,5 +1,7 @@
 import app from "./app";
 import { logger } from "./lib/logger";
+import { paywallEnabled } from "./services/billing.service";
+import { razorpayConfigured } from "./lib/razorpay";
 
 const rawPort = process.env["PORT"];
 
@@ -22,4 +24,12 @@ app.listen(port, (err) => {
   }
 
   logger.info({ port }, "Server listening");
+
+  // Billing readiness, so a missing key is noticed at deploy time and not by a customer.
+  if (paywallEnabled() && !razorpayConfigured()) {
+    logger.warn("Credits are charged but RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET are not set: users cannot buy credits yet");
+  }
+  if (razorpayConfigured() && !process.env["RAZORPAY_WEBHOOK_SECRET"]?.trim()) {
+    logger.warn("RAZORPAY_WEBHOOK_SECRET is not set: payments are confirmed only from the browser, not by Razorpay's webhook");
+  }
 });

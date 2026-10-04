@@ -16,6 +16,7 @@ import {
   type CreateOrderRequest,
 } from "@workspace/api-client-react";
 import { Shell } from "@/components/layout/Shell";
+import { InviteCta } from "@/components/InviteCta";
 import { Button } from "@/components/ui/button";
 import { Loader2, Check, CalendarCheck, Coins } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -233,6 +234,7 @@ export default function Pricing() {
   const packs = plansData?.packs ?? [];
   const single = plansData?.single;
   const subscribed = Boolean(status?.active);
+  const paymentsOff = plansData ? !plansData.paymentsConfigured : false;
   const bestId = plans.reduce<BillingQuote | null>((best, p) => (!best || p.discountPct > best.discountPct ? p : best), null)?.planId;
   const singleOk = single ? Number.isInteger(singleCredits) && singleCredits >= single.minCredits && singleCredits <= single.maxCredits : false;
   const reasonLabel: Record<string, string> = {
@@ -281,6 +283,14 @@ export default function Pricing() {
           )}
         </div>
 
+        {plansData && !plansData.paymentsConfigured && (
+          <p className="mt-4 text-sm rounded-lg border border-orange-400/40 bg-orange-400/10 px-4 py-3 text-foreground">
+            Online payments are opening soon. You can see the plans now; buying will be enabled shortly.
+          </p>
+        )}
+
+        <InviteCta className="mt-4" />
+
         {inviteDiscountPct > 0 && (
           <p className="mt-4 text-sm rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-foreground">
             You earned a {inviteDiscountPct}% discount by inviting a friend. It is applied automatically at checkout (on one purchase).
@@ -304,7 +314,7 @@ export default function Pricing() {
                   quote={q}
                   best={q.planId === bestId && q.discountPct > 0}
                   busy={busyKey === q.planId}
-                  disabled={busyKey !== null}
+                  disabled={busyKey !== null || paymentsOff}
                   renew={subscribed}
                   inviteDiscountPct={inviteDiscountPct}
                   onBuy={() => void checkout(q.planId, { plan: q.planId })}
@@ -331,7 +341,7 @@ export default function Pricing() {
                     </p>
                   </div>
                   <Button
-                    disabled={!subscribed || busyKey !== null || !p.packId}
+                    disabled={!subscribed || busyKey !== null || paymentsOff || !p.packId}
                     onClick={() => p.packId && void checkout(p.packId, { pack: p.packId })}
                     className="w-full bg-primary text-primary-foreground hover:opacity-90 mt-auto"
                   >
@@ -363,7 +373,7 @@ export default function Pricing() {
               </label>
               <p className="text-sm text-foreground pb-1.5">{singleOk ? rupees(singleCredits * single.perCreditPaise) : "-"}</p>
               <Button
-                disabled={!singleOk || busyKey !== null}
+                disabled={!singleOk || busyKey !== null || paymentsOff}
                 onClick={() => void checkout("single", { singleCredits })}
                 className="bg-primary text-primary-foreground hover:opacity-90"
               >

@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Loader2, Copy, Share2, Gift, Users, BadgePercent } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { inviteLink, normalizeReferralCode } from "@/lib/referralLink";
+import { inviteLink, normalizeReferralCode, shareInvite } from "@/lib/referralLink";
 
 function rupees(paise: number): string {
   return "₹" + (paise / 100).toLocaleString("en-IN", { maximumFractionDigits: 0 });
@@ -24,10 +24,6 @@ export default function Invite() {
   const [entered, setEntered] = useState("");
 
   const link = data ? inviteLink(data.code) : "";
-  const message = data
-    ? `I use Situation X for clear decisions (AI + Vedic astrology). Join with my invite code ${data.code}: ${link}`
-    : "";
-
   async function copy(text: string, what: string) {
     try {
       await navigator.clipboard.writeText(text);
@@ -35,18 +31,6 @@ export default function Invite() {
     } catch {
       toast({ title: "Could not copy", description: "Select the text and copy it by hand.", variant: "destructive" });
     }
-  }
-
-  async function share() {
-    if (navigator.share) {
-      try {
-        await navigator.share({ title: "Situation X", text: message, url: link });
-        return;
-      } catch (err) {
-        if ((err as { name?: string } | null)?.name === "AbortError") return; // the user closed the sheet
-      }
-    }
-    window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, "_blank", "noopener,noreferrer");
   }
 
   async function apply() {
@@ -110,7 +94,7 @@ export default function Invite() {
                   <Copy className="w-4 h-4" />
                   Copy code
                 </Button>
-                <Button onClick={() => void share()} className="gap-2 bg-primary text-primary-foreground hover:opacity-90">
+                <Button onClick={() => void shareInvite(data.code)} className="gap-2 bg-primary text-primary-foreground hover:opacity-90">
                   <Share2 className="w-4 h-4" />
                   Share
                 </Button>

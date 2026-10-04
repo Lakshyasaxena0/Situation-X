@@ -9,6 +9,7 @@ import {
   type AnalyzeRequestDepth,
   type CostLine,
 } from "@workspace/api-client-react";
+import { InviteCta } from "@/components/InviteCta";
 import { Shell } from "@/components/layout/Shell";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -116,6 +117,7 @@ function CreditsUsedCard({ result }: { result: AnalysisResult }) {
         )}
       </div>
       <CostLines lines={c.lines} />
+      <InviteCta className="mt-4" />
     </div>
   );
 }
@@ -501,6 +503,7 @@ export default function Oracle() {
               )}
             </details>
           )}
+          {quote && !quote.enough && <InviteCta />}
 
           <Button
             type="submit"
@@ -517,6 +520,7 @@ export default function Oracle() {
             )}
           </Button>
 
+          {analyze.isError && (analyze.error as { status?: number } | null)?.status === 402 && !(quote && !quote.enough) && <InviteCta />}
           {analyze.isError && (analyze.error as { status?: number } | null)?.status === 402 ? (
             <p className="text-sm text-center text-foreground">
               {(analyze.error as { data?: { message?: string } } | null)?.data?.message ?? "You do not have enough credits for this analysis."}{" "}
