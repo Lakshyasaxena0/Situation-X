@@ -231,18 +231,61 @@ function AnalysisDisplay({ result }: { result: AnalysisResult }) {
         <p className="text-sm text-muted-foreground mb-3">{result.finalVerdict.reasoning}</p>
         <p className="text-sm text-foreground border-t border-border/50 pt-3">{result.summary}</p>
         {result.synthesis && (
-          <div className="mt-3 space-y-2 text-sm">
+          <div className="mt-3 space-y-3 text-sm">
+            {/* How the two lenses were weighed */}
+            {result.synthesis.logicScore !== undefined && result.synthesis.astroScore !== undefined && result.synthesis.weights && (
+              <div className="rounded border border-border/60 bg-muted/20 p-3">
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+                  <span><span className="font-mono font-bold text-foreground">AI JUDGMENT</span> {result.synthesis.logicScore} <span className="text-muted-foreground">({Math.round(result.synthesis.weights.logic * 100)}%)</span></span>
+                  <span><span className="font-mono font-bold text-foreground">ASTROLOGY</span> {result.synthesis.astroScore} <span className="text-muted-foreground">({Math.round(result.synthesis.weights.astro * 100)}%)</span></span>
+                  <span><span className="font-mono font-bold text-foreground">FINAL</span> {result.synthesis.score} &middot; {result.synthesis.verdict}</span>
+                  {result.synthesis.astroAlignment && (
+                    <span className={result.synthesis.astroAlignment === "supports" ? "text-green-400" : result.synthesis.astroAlignment === "contradicts" ? "text-red-400" : "text-orange-400"}>
+                      astrology {result.synthesis.astroAlignment === "supports" ? "agrees with the AI" : result.synthesis.astroAlignment === "contradicts" ? "disagrees with the AI" : "partly agrees with the AI"}
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {result.synthesis.reasoning && (
+              <p className="text-muted-foreground">
+                <span className="font-mono text-xs font-bold text-foreground">REASONING </span>
+                {result.synthesis.reasoning}
+              </p>
+            )}
             <p className="text-muted-foreground">
               <span className="font-mono text-xs font-bold text-foreground">ASTRO </span>
               {result.synthesis.astroInsight}
             </p>
-            <p className="text-muted-foreground">
-              <span className="font-mono text-xs font-bold text-foreground">NEXT STEP </span>
+            {result.synthesis.risks && result.synthesis.risks.length > 0 && (
+              <div className="text-muted-foreground">
+                <span className="font-mono text-xs font-bold text-foreground">RISKS</span>
+                <ul className="list-disc pl-5 mt-1 space-y-0.5">
+                  {result.synthesis.risks.map((r, i) => <li key={i}>{r}</li>)}
+                </ul>
+              </div>
+            )}
+            {result.synthesis.keyUnknowns && result.synthesis.keyUnknowns.length > 0 && (
+              <div className="text-muted-foreground">
+                <span className="font-mono text-xs font-bold text-foreground">WHAT WOULD CHANGE THIS</span>
+                <ul className="list-disc pl-5 mt-1 space-y-0.5">
+                  {result.synthesis.keyUnknowns.map((r, i) => <li key={i}>{r}</li>)}
+                </ul>
+              </div>
+            )}
+            <p className="text-foreground">
+              <span className="font-mono text-xs font-bold">NEXT STEP </span>
               {result.synthesis.advice}
             </p>
+            {result.synthesis.nextSteps && result.synthesis.nextSteps.length > 0 && (
+              <ol className="list-decimal pl-5 space-y-0.5 text-muted-foreground">
+                {result.synthesis.nextSteps.map((r, i) => <li key={i}>{r}</li>)}
+              </ol>
+            )}
             <p className="text-xs text-muted-foreground">
               Final answer: {result.synthesis.verdict} &middot; confidence {result.synthesis.confidence}
-              {result.synthesis.source === "ai+astro" ? " · AI + astrology" : " · engine only"}
+              {result.synthesis.source === "ai+astro" ? " · AI + astrology" : " · engine only (AI unavailable)"}
               {result.synthesis.calibration?.applied &&
                 ` · past accuracy ${Math.round(result.synthesis.calibration.hitRate * 100)}% (${result.synthesis.calibration.samples} follow-ups)`}
               . We&rsquo;ll ask how it turned out in about {result.synthesis.timeframeDays} days.

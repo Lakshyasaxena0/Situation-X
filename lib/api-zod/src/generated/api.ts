@@ -407,6 +407,36 @@ export const AnalyzeSituationResponse = zod.object({
         .describe(
           "How accurate past predictions of this kind were, according to user follow-ups",
         ),
+      logicScore: zod
+        .number()
+        .optional()
+        .describe(
+          "The AI's own merit-based score (0-100), before the astrology was weighed in",
+        ),
+      astroScore: zod
+        .number()
+        .optional()
+        .describe("The Prashna astrology verdict as a 0-100 score"),
+      astroAlignment: zod
+        .enum(["supports", "mixed", "contradicts"])
+        .optional()
+        .describe("How the astrology verdict relates to the AI's own judgment"),
+      reasoning: zod
+        .string()
+        .optional()
+        .describe("The AI's reasoning about the situation itself"),
+      risks: zod.array(zod.string()).optional(),
+      keyUnknowns: zod.array(zod.string()).optional(),
+      nextSteps: zod.array(zod.string()).optional(),
+      weights: zod
+        .object({
+          logic: zod.number(),
+          astro: zod.number(),
+        })
+        .optional()
+        .describe(
+          "Weights used to blend the AI judgment and the astrology verdict",
+        ),
     })
     .optional()
     .describe(
@@ -812,6 +842,38 @@ export const GetAnalysisHistoryResponse = zod.object({
                 .optional()
                 .describe(
                   "How accurate past predictions of this kind were, according to user follow-ups",
+                ),
+              logicScore: zod
+                .number()
+                .optional()
+                .describe(
+                  "The AI's own merit-based score (0-100), before the astrology was weighed in",
+                ),
+              astroScore: zod
+                .number()
+                .optional()
+                .describe("The Prashna astrology verdict as a 0-100 score"),
+              astroAlignment: zod
+                .enum(["supports", "mixed", "contradicts"])
+                .optional()
+                .describe(
+                  "How the astrology verdict relates to the AI's own judgment",
+                ),
+              reasoning: zod
+                .string()
+                .optional()
+                .describe("The AI's reasoning about the situation itself"),
+              risks: zod.array(zod.string()).optional(),
+              keyUnknowns: zod.array(zod.string()).optional(),
+              nextSteps: zod.array(zod.string()).optional(),
+              weights: zod
+                .object({
+                  logic: zod.number(),
+                  astro: zod.number(),
+                })
+                .optional()
+                .describe(
+                  "Weights used to blend the AI judgment and the astrology verdict",
                 ),
             })
             .optional()
@@ -1220,6 +1282,38 @@ export const GetAnalysisByIdResponse = zod.object({
             .optional()
             .describe(
               "How accurate past predictions of this kind were, according to user follow-ups",
+            ),
+          logicScore: zod
+            .number()
+            .optional()
+            .describe(
+              "The AI's own merit-based score (0-100), before the astrology was weighed in",
+            ),
+          astroScore: zod
+            .number()
+            .optional()
+            .describe("The Prashna astrology verdict as a 0-100 score"),
+          astroAlignment: zod
+            .enum(["supports", "mixed", "contradicts"])
+            .optional()
+            .describe(
+              "How the astrology verdict relates to the AI's own judgment",
+            ),
+          reasoning: zod
+            .string()
+            .optional()
+            .describe("The AI's reasoning about the situation itself"),
+          risks: zod.array(zod.string()).optional(),
+          keyUnknowns: zod.array(zod.string()).optional(),
+          nextSteps: zod.array(zod.string()).optional(),
+          weights: zod
+            .object({
+              logic: zod.number(),
+              astro: zod.number(),
+            })
+            .optional()
+            .describe(
+              "Weights used to blend the AI judgment and the astrology verdict",
             ),
         })
         .optional()
