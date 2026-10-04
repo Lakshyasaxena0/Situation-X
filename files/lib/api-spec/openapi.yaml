@@ -654,6 +654,42 @@ components:
           enum: [ai+astro, engine]
         calibration:
           $ref: "#/components/schemas/Calibration"
+        logicScore:
+          type: number
+          description: The AI's own merit-based score (0-100), before the astrology was weighed in
+        astroScore:
+          type: number
+          description: The Prashna astrology verdict as a 0-100 score
+        astroAlignment:
+          type: string
+          enum: [supports, mixed, contradicts]
+          description: How the astrology verdict relates to the AI's own judgment
+        reasoning:
+          type: string
+          description: The AI's reasoning about the situation itself
+        risks:
+          type: array
+          items:
+            type: string
+        keyUnknowns:
+          type: array
+          items:
+            type: string
+        nextSteps:
+          type: array
+          items:
+            type: string
+        weights:
+          type: object
+          description: Weights used to blend the AI judgment and the astrology verdict
+          properties:
+            logic:
+              type: number
+            astro:
+              type: number
+          required:
+            - logic
+            - astro
       required:
         - verdict
         - score

@@ -6,9 +6,11 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { Calibration } from "./calibration";
+import type { SynthesisAstroAlignment } from "./synthesisAstroAlignment";
 import type { SynthesisConfidence } from "./synthesisConfidence";
 import type { SynthesisSource } from "./synthesisSource";
 import type { SynthesisVerdict } from "./synthesisVerdict";
+import type { SynthesisWeights } from "./synthesisWeights";
 
 /**
  * Final answer produced by the AI working together with the astrology and the AJIT/MANU/SIVI modules
@@ -23,4 +25,17 @@ export interface Synthesis {
   timeframeDays: number;
   source: SynthesisSource;
   calibration?: Calibration;
+  /** The AI's own merit-based score (0-100), before the astrology was weighed in */
+  logicScore?: number;
+  /** The Prashna astrology verdict as a 0-100 score */
+  astroScore?: number;
+  /** How the astrology verdict relates to the AI's own judgment */
+  astroAlignment?: SynthesisAstroAlignment;
+  /** The AI's reasoning about the situation itself */
+  reasoning?: string;
+  risks?: string[];
+  keyUnknowns?: string[];
+  nextSteps?: string[];
+  /** Weights used to blend the AI judgment and the astrology verdict */
+  weights?: SynthesisWeights;
 }

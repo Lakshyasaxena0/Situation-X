@@ -37,11 +37,14 @@ function post(body: Record<string, unknown>): Promise<Response> {
  * Throws on network errors, timeouts and non-2xx answers; the caller decides the fallback.
  * The error message never contains the API key or the response body.
  */
-export async function groqJsonCompletion(prompt: string): Promise<string | null> {
+export async function groqJsonCompletion(
+  prompt: string,
+  options: { maxTokens?: number; temperature?: number } = {},
+): Promise<string | null> {
   const request = {
     model: process.env.GROQ_MODEL || DEFAULT_GROQ_MODEL,
-    temperature: 0.3,
-    max_completion_tokens: 500,
+    temperature: options.temperature ?? 0.3,
+    max_completion_tokens: options.maxTokens ?? 500,
     messages: [{ role: "user", content: prompt }],
   };
 
