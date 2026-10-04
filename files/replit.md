@@ -79,3 +79,56 @@ charts used, and returns a refined score, summary, astrological insight, advice 
   `GROQ_BASE_URL`, `GROQ_TIMEOUT_MS` (default 20000)
 - Without `GROQ_API_KEY`, or if Groq fails or times out, the answer comes from the engine + astrology alone
   (`synthesis.source = "engine"`)
+
+## Subscriptions, credits & payments (Razorpay, INR)
+Prepaid, no auto-renewal. A **plan** (Monthly, 6 Months, 1 Year, 2 Years) gives access time, a discount that grows
+with length, and **credits** (1 rupee = 1 credit: 150 / 850 / 1700 / 3400). Every analysis spends credits; when they run
+out the user tops up. Price logic: `src/services/billing.service.ts` (integer paise, always computed on the server);
+credits: `src/services/credits.service.ts`; what an analysis costs: `src/services/credit-cost.service.ts`.
+Razorpay Orders API via `src/lib/razorpay.ts`; routes in `src/routes/billing.ts`; UI at `/pricing`.
+- **Cost of one analysis** = ASTRO (4, always; +2 per extra Prashna chart D3/D9/D10) + AJIT (1, if the intent was
+  recognised) + MANU (1, if an emotion was detected) + SIVI (2) + AI reasoning level (standard 4 / deep 8 / expert 14).
+  The level is `auto` (from question length, risk, emotion intensity, health/conflict) or chosen by the user
+  (`depth` in the request). `POST /api/analysis/estimate` returns the exact price before anything is charged.
+  The price is debited up front, atomically (balance can never go below zero); if the AI cannot answer, the AI part
+  is refunded and the user still gets the engine + astrology answer. A failed analysis is refunded in full.
+- **Who can buy what:** plans (anyone), top-up packs of 100/300/1000 credits (active subscribers only, 1 rupee per
+  credit), and "single query" credits (anyone, deliberately the highest price per credit) to push users to subscribe.
+  `POST /api/billing/order` takes exactly one of `plan`, `pack`, `singleCredits`; never an amount.
+- Flow: order -> Razorpay Checkout -> `POST /api/billing/verify` (HMAC check) delivers it. `POST /api/billing/webhook`
+  is the backup (signature-verified). Both are idempotent: the payment flips `created -> paid` once, and credit grants
+  are unique per (reason, order id) in `credit_ledger`.
+- Tables `subscriptions`, `payments` (+ `kind`, `credits`), `credit_wallets`, `credit_ledger`: run
+  `pnpm --filter @workspace/db run push` after deploying.
+- Env vars: `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET`; credits are charged by default
+  (`BILLING_PAYWALL=off` makes everything free, nothing debited); `BILLING_FREE_USER_IDS` = Clerk ids that are never charged.
+  Pricing: `BILLING_PLAN_PRICES_INR` (`150,850,1700,3400` for 1/6/12/24 months), `BILLING_GST_PCT` (0),
+  `BILLING_CREDITS_PER_INR` (1 rupee = 1 credit), `BILLING_WELCOME_CREDITS` (20, one time per new user),
+  `BILLING_TOPUP_RATE_INR` (1 per credit), `BILLING_SINGLE_RATE_INR` (2 per credit). Optional stronger models
+  for the higher AI levels: `GROQ_MODEL_DEEP`, `GROQ_MODEL_EXPERT`.
+- Razorpay dashboard webhook URL: `https://<your-domain>/api/billing/webhook`, events `payment.captured`
+  and `order.paid`, secret = `RAZORPAY_WEBHOOK_SECRET`.
+
+### Invite a friend (referral)
+- Every user has an 8-character code and a link (`https://<site>/?ref=CODE`); the "Invite a friend" page (`/invite`)
+  shows them with copy / share buttons and the counts. The link is remembered in the browser through sign-up and
+  applied once right after sign-in (`POST /api/referral/redeem`); a code can also be typed on the Invite page.
+- A code can be applied once per user, never to oneself, and only before that user's first payment.
+- When the invited friend makes their first qualifying payment (>= `REFERRAL_MIN_PAYMENT_INR`, default 100), the
+  person who invited them earns `REFERRAL_REWARD_PCT` (default 20) % off their NEXT purchase (plan, top-up or
+  single-query credits). One friend = one discount; one discount is used per order, applied on the server in
+  `POST /api/billing/order` (the order response shows `listPricePaise`, `referralDiscountPct`, `amountPaise`).
+- A discount is held by an unpaid order for 2 hours and then becomes usable again; a failed order releases it at once.
+- Tables `referral_codes`, `referrals`, `referral_rewards`: run `pnpm --filter @workspace/db run push` after deploying.
+
+### Go-live checklist for payments
+1. Razorpay dashboard -> API keys: set `RAZORPAY_KEY_ID` and `RAZORPAY_KEY_SECRET` on the API server, restart. Nothing else
+   changes in the code: the plans page switches from "payments opening soon" to live buying by itself
+   (`paymentsConfigured` in `GET /api/billing/plans`).
+2. Razorpay dashboard -> Webhooks: URL `https://<your-domain>/api/billing/webhook`, events `payment.captured` and `order.paid`,
+   choose a secret and set the same value as `RAZORPAY_WEBHOOK_SECRET`. This confirms payments even if the customer closes the
+   browser before returning.
+3. Run `pnpm --filter @workspace/db run push` (billing and referral tables).
+4. Optional: `BILLING_WELCOME_CREDITS=0` (no free credits), `BILLING_FREE_USER_IDS=<your Clerk id>` (owner never charged),
+   `BILLING_GST_PCT` once GST-registered.
+5. The server logs a warning at start if credits are charged but the keys (or the webhook secret) are missing.

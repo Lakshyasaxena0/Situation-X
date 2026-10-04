@@ -1,6 +1,6 @@
 import { Link, useLocation } from "wouter";
 import { useClerk, useUser } from "@clerk/react";
-import { History, MessageSquare, Menu, FlaskConical, LogOut, ChevronDown } from "lucide-react";
+import { History, MessageSquare, Menu, FlaskConical, LogOut, CreditCard, Gift } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/sheet";
 import { SaturnXLogo } from "@/components/SaturnXLogo";
 import { FollowUpPrompt } from "@/components/FollowUpPrompt";
+import { CreditBadge } from "@/components/CreditBadge";
 import { ReactNode, useState } from "react";
 
 interface ShellProps {
@@ -25,6 +26,8 @@ export function Shell({ children }: ShellProps) {
     { href: "/oracle", label: "Analysis", icon: FlaskConical },
     { href: "/history", label: "History", icon: History },
     { href: "/feedback", label: "Feedback", icon: MessageSquare },
+    { href: "/pricing", label: "Plans & credits", icon: CreditCard },
+    { href: "/invite", label: "Invite a friend", icon: Gift },
   ];
 
   function isActive(href: string) {
@@ -74,6 +77,7 @@ export function Shell({ children }: ShellProps) {
             <nav className="flex flex-col gap-1">
               <NavLinks />
             </nav>
+            <CreditBadge />
             <div className="mt-auto">
               {user && (
                 <div className="pt-4 border-t border-border">
@@ -102,6 +106,10 @@ export function Shell({ children }: ShellProps) {
         <nav className="flex-1 px-3 py-4 flex flex-col gap-1">
           <NavLinks />
         </nav>
+
+        <div className="px-3 pb-3">
+          <CreditBadge />
+        </div>
 
         {user && (
           <div className="px-4 py-4 border-t border-border">

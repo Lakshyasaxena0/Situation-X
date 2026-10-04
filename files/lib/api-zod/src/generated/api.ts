@@ -15,6 +15,53 @@ export const HealthCheckResponse = zod.object({
 });
 
 /**
+ * @summary Exact credit cost of analysing this situation (modules involved + reasoning level), before anything is charged
+ */
+export const EstimateAnalysisCostBody = zod.object({
+  situation: zod
+    .string()
+    .describe("The situation to analyze (min 10 characters)"),
+  latitude: zod
+    .number()
+    .optional()
+    .describe(
+      "Optional latitude of where the question is asked (default New Delhi). Only refines the Prashna ascendant; no birth details are needed.",
+    ),
+  longitude: zod
+    .number()
+    .optional()
+    .describe(
+      "Optional longitude of where the question is asked (default New Delhi)",
+    ),
+  depth: zod
+    .enum(["auto", "standard", "deep", "expert"])
+    .optional()
+    .describe(
+      'How deeply the AI should reason. \"auto\" (default) picks the level from how complex the question is. Deeper levels cost more credits.',
+    ),
+});
+
+export const EstimateAnalysisCostResponse = zod.object({
+  total: zod.number(),
+  aiCredits: zod.number(),
+  depth: zod.enum(["standard", "deep", "expert"]),
+  depthChosen: zod.enum(["auto", "user"]),
+  lines: zod.array(
+    zod.object({
+      key: zod.enum(["astro", "ajit", "manu", "sivi", "ai"]),
+      label: zod.string(),
+      credits: zod.number(),
+      note: zod.string(),
+    }),
+  ),
+  billingActive: zod
+    .boolean()
+    .describe("False while credits are not being charged (everything is free)"),
+  balance: zod.number(),
+  enough: zod.boolean(),
+});
+
+/**
  * @summary Analyze a situation
  */
 export const AnalyzeSituationBody = zod.object({
@@ -32,6 +79,12 @@ export const AnalyzeSituationBody = zod.object({
     .optional()
     .describe(
       "Optional longitude of where the question is asked (default New Delhi)",
+    ),
+  depth: zod
+    .enum(["auto", "standard", "deep", "expert"])
+    .optional()
+    .describe(
+      'How deeply the AI should reason. \"auto\" (default) picks the level from how complex the question is. Deeper levels cost more credits.',
     ),
 });
 
@@ -442,6 +495,24 @@ export const AnalyzeSituationResponse = zod.object({
     .describe(
       "Final answer produced by the AI working together with the astrology and the AJIT\/MANU\/SIVI modules",
     ),
+  credits: zod
+    .object({
+      billingActive: zod.boolean(),
+      charged: zod.number(),
+      balance: zod.number().nullable(),
+      depth: zod.enum(["standard", "deep", "expert"]),
+      depthChosen: zod.enum(["auto", "user"]),
+      lines: zod.array(
+        zod.object({
+          key: zod.enum(["astro", "ajit", "manu", "sivi", "ai"]),
+          label: zod.string(),
+          credits: zod.number(),
+          note: zod.string(),
+        }),
+      ),
+    })
+    .optional()
+    .describe("What this analysis cost. charged is 0 while billing is off."),
   followUpAt: zod
     .string()
     .optional()
@@ -879,6 +950,26 @@ export const GetAnalysisHistoryResponse = zod.object({
             .optional()
             .describe(
               "Final answer produced by the AI working together with the astrology and the AJIT\/MANU\/SIVI modules",
+            ),
+          credits: zod
+            .object({
+              billingActive: zod.boolean(),
+              charged: zod.number(),
+              balance: zod.number().nullable(),
+              depth: zod.enum(["standard", "deep", "expert"]),
+              depthChosen: zod.enum(["auto", "user"]),
+              lines: zod.array(
+                zod.object({
+                  key: zod.enum(["astro", "ajit", "manu", "sivi", "ai"]),
+                  label: zod.string(),
+                  credits: zod.number(),
+                  note: zod.string(),
+                }),
+              ),
+            })
+            .optional()
+            .describe(
+              "What this analysis cost. charged is 0 while billing is off.",
             ),
           followUpAt: zod
             .string()
@@ -1320,6 +1411,26 @@ export const GetAnalysisByIdResponse = zod.object({
         .describe(
           "Final answer produced by the AI working together with the astrology and the AJIT\/MANU\/SIVI modules",
         ),
+      credits: zod
+        .object({
+          billingActive: zod.boolean(),
+          charged: zod.number(),
+          balance: zod.number().nullable(),
+          depth: zod.enum(["standard", "deep", "expert"]),
+          depthChosen: zod.enum(["auto", "user"]),
+          lines: zod.array(
+            zod.object({
+              key: zod.enum(["astro", "ajit", "manu", "sivi", "ai"]),
+              label: zod.string(),
+              credits: zod.number(),
+              note: zod.string(),
+            }),
+          ),
+        })
+        .optional()
+        .describe(
+          "What this analysis cost. charged is 0 while billing is off.",
+        ),
       followUpAt: zod
         .string()
         .optional()
@@ -1380,6 +1491,210 @@ export const DismissFollowUpParams = zod.object({
 export const DismissFollowUpResponse = zod.object({
   success: zod.boolean(),
   message: zod.string(),
+});
+
+/**
+ * @summary Subscription plans with the full price breakdown (INR)
+ */
+export const GetBillingPlansResponse = zod.object({
+  currency: zod.string(),
+  paywallEnabled: zod.boolean(),
+  paymentsConfigured: zod
+    .boolean()
+    .describe("False until the payment gateway keys are set on the server"),
+  plans: zod.array(
+    zod
+      .object({
+        planId: zod.enum(["monthly", "six_months", "yearly", "two_years"]),
+        label: zod.string(),
+        months: zod.number(),
+        currency: zod.string(),
+        monthlyPaise: zod.number(),
+        grossPaise: zod.number(),
+        discountPct: zod.number(),
+        discountPaise: zod.number(),
+        gstPct: zod.number(),
+        gstPaise: zod.number(),
+        totalPaise: zod.number(),
+        effectivePerMonthPaise: zod.number(),
+        credits: zod
+          .number()
+          .describe("Credits added to the wallet when this plan is paid"),
+      })
+      .describe(
+        "Price breakdown of one plan. All money values are integer paise (INR).",
+      ),
+  ),
+  packs: zod
+    .array(
+      zod
+        .object({
+          kind: zod.enum(["topup", "single"]),
+          packId: zod.enum(["topup_100", "topup_300", "topup_1000"]).nullable(),
+          credits: zod.number(),
+          currency: zod.string(),
+          grossPaise: zod.number(),
+          discountPct: zod.number(),
+          discountPaise: zod.number(),
+          gstPct: zod.number(),
+          gstPaise: zod.number(),
+          totalPaise: zod.number(),
+          perCreditPaise: zod.number(),
+        })
+        .describe(
+          "Price of a credit-only purchase. All money values are integer paise (INR).",
+        ),
+    )
+    .describe("Top-up packs (subscribers only)"),
+  single: zod
+    .object({
+      minCredits: zod.number(),
+      maxCredits: zod.number(),
+      perCreditPaise: zod.number(),
+    })
+    .describe(
+      "Credits bought without a subscription, at a higher per-credit price",
+    ),
+  costs: zod
+    .object({
+      modules: zod.array(
+        zod.object({
+          label: zod.string(),
+          credits: zod.number(),
+        }),
+      ),
+      ai: zod.array(
+        zod.object({
+          label: zod.string(),
+          credits: zod.number(),
+        }),
+      ),
+    })
+    .describe("What each module and each reasoning level costs"),
+});
+
+/**
+ * @summary The signed-in user's subscription
+ */
+export const GetSubscriptionStatusResponse = zod.object({
+  active: zod.boolean(),
+  plan: zod.string().nullable(),
+  currentPeriodEnd: zod.string().nullable(),
+  daysLeft: zod.number(),
+  paywallEnabled: zod.boolean(),
+  creditBalance: zod.number().optional(),
+});
+
+/**
+ * @summary Credit balance and recent credit history of the signed-in user
+ */
+export const GetCreditsResponse = zod.object({
+  balance: zod.number(),
+  billingActive: zod.boolean(),
+  ledger: zod.array(
+    zod.object({
+      id: zod.number(),
+      delta: zod.number(),
+      balanceAfter: zod.number(),
+      reason: zod.enum([
+        "welcome",
+        "plan",
+        "topup",
+        "single",
+        "analysis",
+        "refund",
+      ]),
+      analysisId: zod.number().nullable(),
+      createdAt: zod.string(),
+    }),
+  ),
+});
+
+/**
+ * @summary Start a Razorpay checkout for a plan, a top-up pack or a single-query credit purchase (the amount is computed on the server)
+ */
+export const CreateBillingOrderBody = zod
+  .object({
+    plan: zod.enum(["monthly", "six_months", "yearly", "two_years"]).optional(),
+    pack: zod
+      .enum(["topup_100", "topup_300", "topup_1000"])
+      .optional()
+      .describe("Credit top-up pack (needs an active subscription)"),
+    singleCredits: zod
+      .number()
+      .optional()
+      .describe(
+        "Buy this many credits at the single-query rate (no subscription needed)",
+      ),
+  })
+  .describe("Exactly one of plan, pack or singleCredits.");
+
+export const CreateBillingOrderResponse = zod.object({
+  orderId: zod.string(),
+  keyId: zod.string(),
+  amountPaise: zod
+    .number()
+    .describe("What is actually charged, after any referral discount"),
+  listPricePaise: zod.number().describe("Price before the referral discount"),
+  referralDiscountPct: zod.number(),
+  referralDiscountPaise: zod.number(),
+  currency: zod.string(),
+  kind: zod.enum(["plan", "topup", "single"]),
+  product: zod.string(),
+  credits: zod.number(),
+  description: zod.string(),
+});
+
+/**
+ * @summary Invite a friend - the signed-in user's invite code, how many friends joined and paid, and the discount waiting for their next purchase
+ */
+export const GetReferralResponse = zod.object({
+  code: zod.string().describe("The user's invite code"),
+  rewardPct: zod.number().describe("Discount earned for each friend who pays"),
+  minPaymentPaise: zod
+    .number()
+    .describe("Smallest first payment by the friend that earns the discount"),
+  invited: zod.number().describe("Friends who applied the code"),
+  converted: zod
+    .number()
+    .describe("Friends who paid (discounts earned so far)"),
+  discountsAvailable: zod.number(),
+  nextDiscountPct: zod
+    .number()
+    .describe("Discount that will be applied to the next purchase (0 if none)"),
+  referredBy: zod
+    .boolean()
+    .describe("This user already applied someone's invite code"),
+});
+
+/**
+ * @summary Apply a friend's invite code (once, before the first payment)
+ */
+export const RedeemReferralCodeBody = zod.object({
+  code: zod.string(),
+});
+
+export const RedeemReferralCodeResponse = zod.object({
+  applied: zod.boolean(),
+  message: zod.string(),
+});
+
+/**
+ * @summary Confirm a Checkout payment (verifies Razorpay's signature) and activate the subscription
+ */
+export const VerifyBillingPaymentBody = zod.object({
+  razorpay_order_id: zod.string(),
+  razorpay_payment_id: zod.string(),
+  razorpay_signature: zod.string(),
+});
+
+export const VerifyBillingPaymentResponse = zod.object({
+  active: zod.boolean(),
+  plan: zod.string().nullable(),
+  currentPeriodEnd: zod.string().nullable(),
+  daysLeft: zod.number(),
+  paywallEnabled: zod.boolean(),
+  creditBalance: zod.number().optional(),
 });
 
 /**

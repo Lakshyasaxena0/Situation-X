@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { AstroResult } from "./astroResult";
+import type { CreditsUsed } from "./creditsUsed";
 import type { EmotionResult } from "./emotionResult";
 import type { FinalVerdict } from "./finalVerdict";
 import type { IntentResult } from "./intentResult";
@@ -23,6 +24,7 @@ export interface AnalysisResult {
   overallScore: number;
   summary: string;
   synthesis?: Synthesis;
+  credits?: CreditsUsed;
   /** When the app will ask how the prediction turned out */
   followUpAt?: string;
   createdAt: string;

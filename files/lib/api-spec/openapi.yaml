@@ -10,6 +10,7 @@ tags:
   - name: health
   - name: analysis
   - name: feedback
+  - name: billing
 paths:
   /healthz:
     get:
@@ -23,6 +24,31 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /analysis/estimate:
+    post:
+      operationId: estimateAnalysisCost
+      tags: [analysis]
+      summary: Exact credit cost of analysing this situation (modules involved + reasoning level), before anything is charged
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnalyzeRequest"
+      responses:
+        "200":
+          description: Cost breakdown
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CostEstimate"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /analysis/analyze:
     post:
@@ -48,6 +74,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "402":
+          description: Not enough credits (the body carries the price and the balance)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InsufficientCreditsResponse"
         "500":
           description: Server error
           content:
@@ -190,6 +222,163 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /billing/plans:
+    get:
+      operationId: getBillingPlans
+      tags: [billing]
+      summary: Subscription plans with the full price breakdown (INR)
+      responses:
+        "200":
+          description: Plans
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BillingPlansResponse"
+
+  /billing/status:
+    get:
+      operationId: getSubscriptionStatus
+      tags: [billing]
+      summary: The signed-in user's subscription
+      responses:
+        "200":
+          description: Subscription status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubscriptionStatus"
+
+  /billing/credits:
+    get:
+      operationId: getCredits
+      tags: [billing]
+      summary: Credit balance and recent credit history of the signed-in user
+      responses:
+        "200":
+          description: Wallet
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreditsResponse"
+
+  /billing/order:
+    post:
+      operationId: createBillingOrder
+      tags: [billing]
+      summary: Start a Razorpay checkout for a plan, a top-up pack or a single-query credit purchase (the amount is computed on the server)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateOrderRequest"
+      responses:
+        "200":
+          description: Razorpay order to open in Checkout
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateOrderResponse"
+        "400":
+          description: Unknown or ambiguous product
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Top-up packs need an active subscription
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Payments not configured
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /referral:
+    get:
+      operationId: getReferral
+      tags: [billing]
+      summary: Invite a friend - the signed-in user's invite code, how many friends joined and paid, and the discount waiting for their next purchase
+      responses:
+        "200":
+          description: Referral summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReferralSummary"
+
+  /referral/redeem:
+    post:
+      operationId: redeemReferralCode
+      tags: [billing]
+      summary: Apply a friend's invite code (once, before the first payment)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RedeemReferralRequest"
+      responses:
+        "200":
+          description: Code applied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RedeemReferralResponse"
+        "400":
+          description: Missing code, or the user's own code
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Unknown code
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Already used a code, or already paid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /billing/verify:
+    post:
+      operationId: verifyBillingPayment
+      tags: [billing]
+      summary: Confirm a Checkout payment (verifies Razorpay's signature) and activate the subscription
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VerifyPaymentRequest"
+      responses:
+        "200":
+          description: Updated subscription status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubscriptionStatus"
+        "400":
+          description: Signature mismatch
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Order not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /feedback:
     post:
       operationId: createFeedback
@@ -282,6 +471,10 @@ components:
         longitude:
           type: number
           description: Optional longitude of where the question is asked (default New Delhi)
+        depth:
+          type: string
+          enum: [auto, standard, deep, expert]
+          description: How deeply the AI should reason. "auto" (default) picks the level from how complex the question is. Deeper levels cost more credits.
       required:
         - situation
 
@@ -612,6 +805,8 @@ components:
           type: string
         synthesis:
           $ref: "#/components/schemas/Synthesis"
+        credits:
+          $ref: "#/components/schemas/CreditsUsed"
         followUpAt:
           type: string
           description: When the app will ask how the prediction turned out
@@ -798,6 +993,355 @@ components:
         - items
         - total
 
+    BillingQuote:
+      type: object
+      description: Price breakdown of one plan. All money values are integer paise (INR).
+      properties:
+        planId:
+          type: string
+          enum: [monthly, six_months, yearly, two_years]
+        label:
+          type: string
+        months:
+          type: integer
+        currency:
+          type: string
+        monthlyPaise:
+          type: integer
+        grossPaise:
+          type: integer
+        discountPct:
+          type: number
+        discountPaise:
+          type: integer
+        gstPct:
+          type: number
+        gstPaise:
+          type: integer
+        totalPaise:
+          type: integer
+        effectivePerMonthPaise:
+          type: integer
+        credits:
+          type: integer
+          description: Credits added to the wallet when this plan is paid
+      required:
+        - credits
+        - planId
+        - label
+        - months
+        - currency
+        - monthlyPaise
+        - grossPaise
+        - discountPct
+        - discountPaise
+        - gstPct
+        - gstPaise
+        - totalPaise
+        - effectivePerMonthPaise
+
+    BillingPlansResponse:
+      type: object
+      properties:
+        currency:
+          type: string
+        paywallEnabled:
+          type: boolean
+        paymentsConfigured:
+          type: boolean
+          description: False until the payment gateway keys are set on the server
+        plans:
+          type: array
+          items:
+            $ref: "#/components/schemas/BillingQuote"
+        packs:
+          type: array
+          description: Top-up packs (subscribers only)
+          items:
+            $ref: "#/components/schemas/CreditPackQuote"
+        single:
+          $ref: "#/components/schemas/SingleQueryRate"
+        costs:
+          $ref: "#/components/schemas/CostTable"
+      required:
+        - currency
+        - paywallEnabled
+        - paymentsConfigured
+        - plans
+        - packs
+        - single
+        - costs
+
+    CreditPackQuote:
+      type: object
+      description: Price of a credit-only purchase. All money values are integer paise (INR).
+      properties:
+        kind:
+          type: string
+          enum: [topup, single]
+        packId:
+          type: string
+          nullable: true
+          enum: [topup_100, topup_300, topup_1000]
+        credits:
+          type: integer
+        currency:
+          type: string
+        grossPaise:
+          type: integer
+        discountPct:
+          type: number
+        discountPaise:
+          type: integer
+        gstPct:
+          type: number
+        gstPaise:
+          type: integer
+        totalPaise:
+          type: integer
+        perCreditPaise:
+          type: integer
+      required: [kind, packId, credits, currency, grossPaise, discountPct, discountPaise, gstPct, gstPaise, totalPaise, perCreditPaise]
+
+    SingleQueryRate:
+      type: object
+      description: Credits bought without a subscription, at a higher per-credit price
+      properties:
+        minCredits:
+          type: integer
+        maxCredits:
+          type: integer
+        perCreditPaise:
+          type: integer
+      required: [minCredits, maxCredits, perCreditPaise]
+
+    CostTableRow:
+      type: object
+      properties:
+        label:
+          type: string
+        credits:
+          type: integer
+      required: [label, credits]
+
+    CostTable:
+      type: object
+      description: What each module and each reasoning level costs
+      properties:
+        modules:
+          type: array
+          items:
+            $ref: "#/components/schemas/CostTableRow"
+        ai:
+          type: array
+          items:
+            $ref: "#/components/schemas/CostTableRow"
+      required: [modules, ai]
+
+    CostLine:
+      type: object
+      properties:
+        key:
+          type: string
+          enum: [astro, ajit, manu, sivi, ai]
+        label:
+          type: string
+        credits:
+          type: integer
+        note:
+          type: string
+      required: [key, label, credits, note]
+
+    CostEstimate:
+      type: object
+      properties:
+        total:
+          type: integer
+        aiCredits:
+          type: integer
+        depth:
+          type: string
+          enum: [standard, deep, expert]
+        depthChosen:
+          type: string
+          enum: [auto, user]
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/CostLine"
+        billingActive:
+          type: boolean
+          description: False while credits are not being charged (everything is free)
+        balance:
+          type: integer
+        enough:
+          type: boolean
+      required: [total, aiCredits, depth, depthChosen, lines, billingActive, balance, enough]
+
+    CreditsUsed:
+      type: object
+      description: What this analysis cost. charged is 0 while billing is off.
+      properties:
+        billingActive:
+          type: boolean
+        charged:
+          type: integer
+        balance:
+          type: integer
+          nullable: true
+        depth:
+          type: string
+          enum: [standard, deep, expert]
+        depthChosen:
+          type: string
+          enum: [auto, user]
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/CostLine"
+      required: [billingActive, charged, balance, depth, depthChosen, lines]
+
+    InsufficientCreditsResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+        required:
+          type: integer
+        balance:
+          type: integer
+        cost:
+          $ref: "#/components/schemas/CostEstimate"
+      required: [error, message, required, balance]
+
+    LedgerEntry:
+      type: object
+      properties:
+        id:
+          type: integer
+        delta:
+          type: integer
+        balanceAfter:
+          type: integer
+        reason:
+          type: string
+          enum: [welcome, plan, topup, single, analysis, refund]
+        analysisId:
+          type: integer
+          nullable: true
+        createdAt:
+          type: string
+      required: [id, delta, balanceAfter, reason, analysisId, createdAt]
+
+    CreditsResponse:
+      type: object
+      properties:
+        balance:
+          type: integer
+        billingActive:
+          type: boolean
+        ledger:
+          type: array
+          items:
+            $ref: "#/components/schemas/LedgerEntry"
+      required: [balance, billingActive, ledger]
+
+    SubscriptionStatus:
+      type: object
+      properties:
+        active:
+          type: boolean
+        plan:
+          type: string
+          nullable: true
+        currentPeriodEnd:
+          type: string
+          nullable: true
+        daysLeft:
+          type: integer
+        paywallEnabled:
+          type: boolean
+        creditBalance:
+          type: integer
+      required:
+        - active
+        - plan
+        - currentPeriodEnd
+        - daysLeft
+        - paywallEnabled
+
+    CreateOrderRequest:
+      type: object
+      description: Exactly one of plan, pack or singleCredits.
+      properties:
+        plan:
+          type: string
+          enum: [monthly, six_months, yearly, two_years]
+        pack:
+          type: string
+          enum: [topup_100, topup_300, topup_1000]
+          description: Credit top-up pack (needs an active subscription)
+        singleCredits:
+          type: integer
+          description: Buy this many credits at the single-query rate (no subscription needed)
+
+    CreateOrderResponse:
+      type: object
+      properties:
+        orderId:
+          type: string
+        keyId:
+          type: string
+        amountPaise:
+          type: integer
+          description: What is actually charged, after any referral discount
+        listPricePaise:
+          type: integer
+          description: Price before the referral discount
+        referralDiscountPct:
+          type: integer
+        referralDiscountPaise:
+          type: integer
+        currency:
+          type: string
+        kind:
+          type: string
+          enum: [plan, topup, single]
+        product:
+          type: string
+        credits:
+          type: integer
+        description:
+          type: string
+      required:
+        - orderId
+        - keyId
+        - amountPaise
+        - listPricePaise
+        - referralDiscountPct
+        - referralDiscountPaise
+        - currency
+        - kind
+        - product
+        - credits
+        - description
+
+    VerifyPaymentRequest:
+      type: object
+      properties:
+        razorpay_order_id:
+          type: string
+        razorpay_payment_id:
+          type: string
+        razorpay_signature:
+          type: string
+      required:
+        - razorpay_order_id
+        - razorpay_payment_id
+        - razorpay_signature
+
     DeleteResponse:
       type: object
       properties:
@@ -884,6 +1428,61 @@ components:
         - total
         - limit
         - offset
+
+    ReferralSummary:
+      type: object
+      properties:
+        code:
+          type: string
+          description: The user's invite code
+        rewardPct:
+          type: integer
+          description: Discount earned for each friend who pays
+        minPaymentPaise:
+          type: integer
+          description: Smallest first payment by the friend that earns the discount
+        invited:
+          type: integer
+          description: Friends who applied the code
+        converted:
+          type: integer
+          description: Friends who paid (discounts earned so far)
+        discountsAvailable:
+          type: integer
+        nextDiscountPct:
+          type: integer
+          description: Discount that will be applied to the next purchase (0 if none)
+        referredBy:
+          type: boolean
+          description: This user already applied someone's invite code
+      required:
+        - code
+        - rewardPct
+        - minPaymentPaise
+        - invited
+        - converted
+        - discountsAvailable
+        - nextDiscountPct
+        - referredBy
+
+    RedeemReferralRequest:
+      type: object
+      properties:
+        code:
+          type: string
+      required:
+        - code
+
+    RedeemReferralResponse:
+      type: object
+      properties:
+        applied:
+          type: boolean
+        message:
+          type: string
+      required:
+        - applied
+        - message
 
     ErrorResponse:
       type: object

@@ -1,8 +1,15 @@
-import { useState } from "react";
+import { Link } from "wouter";
+import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   useAnalyzeSituation,
+  useEstimateAnalysisCost,
+  getGetCreditsQueryKey,
   type AnalysisResult,
+  type AnalyzeRequestDepth,
+  type CostLine,
 } from "@workspace/api-client-react";
+import { InviteCta } from "@/components/InviteCta";
 import { Shell } from "@/components/layout/Shell";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -69,6 +76,50 @@ function analysisErrorMessage(error: unknown): string {
     return e.data.message;
   }
   return "Analysis failed. Please try again.";
+}
+
+const DEPTH_OPTIONS: { value: AnalyzeRequestDepth; label: string; hint: string }[] = [
+  { value: "auto", label: "Auto", hint: "Chosen from how complex your question is" },
+  { value: "standard", label: "Standard", hint: "Core question, key facts, best action" },
+  { value: "deep", label: "Deep", hint: "Several options weighed, second-order effects" },
+  { value: "expert", label: "Expert", hint: "Pre-mortem, bias check, honest uncertainty" },
+];
+
+function CostLines({ lines }: { lines: CostLine[] }) {
+  return (
+    <ul className="mt-2 space-y-1">
+      {lines.map((l) => (
+        <li key={l.key} className="flex justify-between gap-3 text-xs text-muted-foreground">
+          <span>
+            <span className="text-foreground">{l.label}</span> - {l.note}
+          </span>
+          <span className="shrink-0 text-foreground">{l.credits}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function CreditsUsedCard({ result }: { result: AnalysisResult }) {
+  const c = result.credits;
+  if (!c?.billingActive) return null;
+  return (
+    <div className="rounded-lg border border-border bg-card p-4">
+      <div className="flex items-baseline justify-between">
+        <h3 className="text-sm font-semibold text-foreground">Credits used: {c.charged}</h3>
+        {c.balance !== null && c.balance !== undefined && (
+          <span className="text-xs text-muted-foreground">
+            {c.balance} left ·{" "}
+            <Link href="/pricing" className="text-primary underline underline-offset-2">
+              add credits
+            </Link>
+          </span>
+        )}
+      </div>
+      <CostLines lines={c.lines} />
+      <InviteCta className="mt-4" />
+    </div>
+  );
 }
 
 function AnalysisDisplay({ result }: { result: AnalysisResult }) {
@@ -293,6 +344,7 @@ function AnalysisDisplay({ result }: { result: AnalysisResult }) {
           </div>
         )}
       </motion.div>
+      <CreditsUsedCard result={result} />
     </div>
   );
 }
@@ -304,7 +356,26 @@ export default function Oracle() {
   const [locationNote, setLocationNote] = useState("");
   const [result, setResult] = useState<AnalysisResult | null>(null);
 
+  const [depth, setDepth] = useState<AnalyzeRequestDepth>("auto");
+  const queryClient = useQueryClient();
+
   const analyze = useAnalyzeSituation();
+  const estimate = useEstimateAnalysisCost();
+  const { mutate: runEstimate, reset: resetEstimate } = estimate;
+  const lat = coords?.latitude;
+  const lon = coords?.longitude;
+  const text = situation.trim();
+
+  // Quote the exact price (modules involved + reasoning level) while the user types, before anything is charged.
+  useEffect(() => {
+    if (text.length < 10) {
+      resetEstimate();
+      return;
+    }
+    const t = setTimeout(() => runEstimate({ data: { situation: text, depth, latitude: lat, longitude: lon } }), 600);
+    return () => clearTimeout(t);
+  }, [text, depth, lat, lon, runEstimate, resetEstimate]);
+  const quote = estimate.data?.billingActive ? estimate.data : null;
 
   function requestLocation() {
     if (!navigator.geolocation) {
@@ -333,11 +404,18 @@ export default function Oracle() {
       {
         data: {
           situation: situation.trim(),
+          depth,
           latitude: coords?.latitude,
           longitude: coords?.longitude,
         },
       },
-      { onSuccess: (data) => setResult(data) }
+      {
+        onSuccess: (data) => {
+          setResult(data);
+          void queryClient.invalidateQueries({ queryKey: getGetCreditsQueryKey() });
+        },
+        onError: () => void queryClient.invalidateQueries({ queryKey: getGetCreditsQueryKey() }),
+      }
     );
   }
 
@@ -383,9 +461,53 @@ export default function Oracle() {
             </div>
           </div>
 
+          {/* How deeply the AI should think: costs more credits, shown before you run. */}
+          <div>
+            <p className="text-xs text-muted-foreground mb-1.5">AI reasoning level</p>
+            <div className="flex gap-1.5 flex-wrap" role="radiogroup" aria-label="AI reasoning level">
+              {DEPTH_OPTIONS.map((o) => (
+                <button
+                  key={o.value}
+                  type="button"
+                  role="radio"
+                  aria-checked={depth === o.value}
+                  title={o.hint}
+                  onClick={() => setDepth(o.value)}
+                  className={`px-3 py-1.5 rounded border text-xs transition-colors ${
+                    depth === o.value ? "border-primary/60 bg-primary/15 text-primary" : "border-border text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {o.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {quote && (
+            <details className="rounded-lg border border-border bg-card px-4 py-3 text-sm">
+              <summary className="cursor-pointer flex items-center justify-between gap-3 list-none">
+                <span className="text-foreground">
+                  This analysis will use <strong>{quote.total} credits</strong>
+                  <span className="text-xs text-muted-foreground"> ({quote.depth} reasoning{quote.depthChosen === "auto" ? ", auto" : ""})</span>
+                </span>
+                <span className={`text-xs ${quote.enough ? "text-muted-foreground" : "text-red-400"}`}>{quote.balance} available</span>
+              </summary>
+              <CostLines lines={quote.lines} />
+              {!quote.enough && (
+                <p className="mt-3 text-xs text-red-400">
+                  You need {quote.total - quote.balance} more credits.{" "}
+                  <Link href="/pricing" className="underline underline-offset-2">
+                    Get credits
+                  </Link>
+                </p>
+              )}
+            </details>
+          )}
+          {quote && !quote.enough && <InviteCta />}
+
           <Button
             type="submit"
-            disabled={analyze.isPending || situation.length < 10}
+            disabled={analyze.isPending || situation.length < 10 || (quote !== null && !quote.enough)}
             className="w-full bg-primary text-primary-foreground hover:opacity-90"
           >
             {analyze.isPending ? (
@@ -398,10 +520,20 @@ export default function Oracle() {
             )}
           </Button>
 
-          {analyze.isError && (
-            <p className="text-sm text-red-400 text-center">
-              {analysisErrorMessage(analyze.error)}
+          {analyze.isError && (analyze.error as { status?: number } | null)?.status === 402 && !(quote && !quote.enough) && <InviteCta />}
+          {analyze.isError && (analyze.error as { status?: number } | null)?.status === 402 ? (
+            <p className="text-sm text-center text-foreground">
+              {(analyze.error as { data?: { message?: string } } | null)?.data?.message ?? "You do not have enough credits for this analysis."}{" "}
+              <Link href="/pricing" className="text-primary underline underline-offset-2">
+                Get credits
+              </Link>
             </p>
+          ) : (
+            analyze.isError && (
+              <p className="text-sm text-red-400 text-center">
+                {analysisErrorMessage(analyze.error)}
+              </p>
+            )
           )}
         </form>
 

@@ -21,7 +21,12 @@ import type {
   AnalysisRecord,
   AnalysisResult,
   AnalyzeRequest,
+  BillingPlansResponse,
+  CostEstimate,
   CreateFeedbackRequest,
+  CreateOrderRequest,
+  CreateOrderResponse,
+  CreditsResponse,
   DeleteResponse,
   DueFollowUpsResponse,
   ErrorResponse,
@@ -30,6 +35,12 @@ import type {
   GetAnalysisHistoryParams,
   GetFeedbackListParams,
   HealthStatus,
+  InsufficientCreditsResponse,
+  RedeemReferralRequest,
+  RedeemReferralResponse,
+  ReferralSummary,
+  SubscriptionStatus,
+  VerifyPaymentRequest,
 } from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
@@ -117,6 +128,92 @@ export function useHealthCheck<
 }
 
 /**
+ * @summary Exact credit cost of analysing this situation (modules involved + reasoning level), before anything is charged
+ */
+export const getEstimateAnalysisCostUrl = () => {
+  return `/api/analysis/estimate`;
+};
+
+export const estimateAnalysisCost = async (
+  analyzeRequest: AnalyzeRequest,
+  options?: RequestInit,
+): Promise<CostEstimate> => {
+  return customFetch<CostEstimate>(getEstimateAnalysisCostUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(analyzeRequest),
+  });
+};
+
+export const getEstimateAnalysisCostMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof estimateAnalysisCost>>,
+    TError,
+    { data: BodyType<AnalyzeRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof estimateAnalysisCost>>,
+  TError,
+  { data: BodyType<AnalyzeRequest> },
+  TContext
+> => {
+  const mutationKey = ["estimateAnalysisCost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof estimateAnalysisCost>>,
+    { data: BodyType<AnalyzeRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return estimateAnalysisCost(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type EstimateAnalysisCostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof estimateAnalysisCost>>
+>;
+export type EstimateAnalysisCostMutationBody = BodyType<AnalyzeRequest>;
+export type EstimateAnalysisCostMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Exact credit cost of analysing this situation (modules involved + reasoning level), before anything is charged
+ */
+export const useEstimateAnalysisCost = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof estimateAnalysisCost>>,
+    TError,
+    { data: BodyType<AnalyzeRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof estimateAnalysisCost>>,
+  TError,
+  { data: BodyType<AnalyzeRequest> },
+  TContext
+> => {
+  return useMutation(getEstimateAnalysisCostMutationOptions(options));
+};
+
+/**
  * @summary Analyze a situation
  */
 export const getAnalyzeSituationUrl = () => {
@@ -136,7 +233,7 @@ export const analyzeSituation = async (
 };
 
 export const getAnalyzeSituationMutationOptions = <
-  TError = ErrorType<ErrorResponse>,
+  TError = ErrorType<ErrorResponse | InsufficientCreditsResponse>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -177,13 +274,15 @@ export type AnalyzeSituationMutationResult = NonNullable<
   Awaited<ReturnType<typeof analyzeSituation>>
 >;
 export type AnalyzeSituationMutationBody = BodyType<AnalyzeRequest>;
-export type AnalyzeSituationMutationError = ErrorType<ErrorResponse>;
+export type AnalyzeSituationMutationError = ErrorType<
+  ErrorResponse | InsufficientCreditsResponse
+>;
 
 /**
  * @summary Analyze a situation
  */
 export const useAnalyzeSituation = <
-  TError = ErrorType<ErrorResponse>,
+  TError = ErrorType<ErrorResponse | InsufficientCreditsResponse>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -714,6 +813,564 @@ export const useDismissFollowUp = <
   TContext
 > => {
   return useMutation(getDismissFollowUpMutationOptions(options));
+};
+
+/**
+ * @summary Subscription plans with the full price breakdown (INR)
+ */
+export const getGetBillingPlansUrl = () => {
+  return `/api/billing/plans`;
+};
+
+export const getBillingPlans = async (
+  options?: RequestInit,
+): Promise<BillingPlansResponse> => {
+  return customFetch<BillingPlansResponse>(getGetBillingPlansUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetBillingPlansQueryKey = () => {
+  return [`/api/billing/plans`] as const;
+};
+
+export const getGetBillingPlansQueryOptions = <
+  TData = Awaited<ReturnType<typeof getBillingPlans>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getBillingPlans>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetBillingPlansQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getBillingPlans>>> = ({
+    signal,
+  }) => getBillingPlans({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getBillingPlans>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetBillingPlansQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getBillingPlans>>
+>;
+export type GetBillingPlansQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Subscription plans with the full price breakdown (INR)
+ */
+
+export function useGetBillingPlans<
+  TData = Awaited<ReturnType<typeof getBillingPlans>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getBillingPlans>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetBillingPlansQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary The signed-in user's subscription
+ */
+export const getGetSubscriptionStatusUrl = () => {
+  return `/api/billing/status`;
+};
+
+export const getSubscriptionStatus = async (
+  options?: RequestInit,
+): Promise<SubscriptionStatus> => {
+  return customFetch<SubscriptionStatus>(getGetSubscriptionStatusUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetSubscriptionStatusQueryKey = () => {
+  return [`/api/billing/status`] as const;
+};
+
+export const getGetSubscriptionStatusQueryOptions = <
+  TData = Awaited<ReturnType<typeof getSubscriptionStatus>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getSubscriptionStatus>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetSubscriptionStatusQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getSubscriptionStatus>>
+  > = ({ signal }) => getSubscriptionStatus({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getSubscriptionStatus>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetSubscriptionStatusQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getSubscriptionStatus>>
+>;
+export type GetSubscriptionStatusQueryError = ErrorType<unknown>;
+
+/**
+ * @summary The signed-in user's subscription
+ */
+
+export function useGetSubscriptionStatus<
+  TData = Awaited<ReturnType<typeof getSubscriptionStatus>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getSubscriptionStatus>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetSubscriptionStatusQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Credit balance and recent credit history of the signed-in user
+ */
+export const getGetCreditsUrl = () => {
+  return `/api/billing/credits`;
+};
+
+export const getCredits = async (
+  options?: RequestInit,
+): Promise<CreditsResponse> => {
+  return customFetch<CreditsResponse>(getGetCreditsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetCreditsQueryKey = () => {
+  return [`/api/billing/credits`] as const;
+};
+
+export const getGetCreditsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getCredits>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getCredits>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetCreditsQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getCredits>>> = ({
+    signal,
+  }) => getCredits({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getCredits>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetCreditsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getCredits>>
+>;
+export type GetCreditsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Credit balance and recent credit history of the signed-in user
+ */
+
+export function useGetCredits<
+  TData = Awaited<ReturnType<typeof getCredits>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getCredits>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetCreditsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Start a Razorpay checkout for a plan, a top-up pack or a single-query credit purchase (the amount is computed on the server)
+ */
+export const getCreateBillingOrderUrl = () => {
+  return `/api/billing/order`;
+};
+
+export const createBillingOrder = async (
+  createOrderRequest: CreateOrderRequest,
+  options?: RequestInit,
+): Promise<CreateOrderResponse> => {
+  return customFetch<CreateOrderResponse>(getCreateBillingOrderUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createOrderRequest),
+  });
+};
+
+export const getCreateBillingOrderMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createBillingOrder>>,
+    TError,
+    { data: BodyType<CreateOrderRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createBillingOrder>>,
+  TError,
+  { data: BodyType<CreateOrderRequest> },
+  TContext
+> => {
+  const mutationKey = ["createBillingOrder"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createBillingOrder>>,
+    { data: BodyType<CreateOrderRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createBillingOrder(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateBillingOrderMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createBillingOrder>>
+>;
+export type CreateBillingOrderMutationBody = BodyType<CreateOrderRequest>;
+export type CreateBillingOrderMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Start a Razorpay checkout for a plan, a top-up pack or a single-query credit purchase (the amount is computed on the server)
+ */
+export const useCreateBillingOrder = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createBillingOrder>>,
+    TError,
+    { data: BodyType<CreateOrderRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createBillingOrder>>,
+  TError,
+  { data: BodyType<CreateOrderRequest> },
+  TContext
+> => {
+  return useMutation(getCreateBillingOrderMutationOptions(options));
+};
+
+/**
+ * @summary Invite a friend - the signed-in user's invite code, how many friends joined and paid, and the discount waiting for their next purchase
+ */
+export const getGetReferralUrl = () => {
+  return `/api/referral`;
+};
+
+export const getReferral = async (
+  options?: RequestInit,
+): Promise<ReferralSummary> => {
+  return customFetch<ReferralSummary>(getGetReferralUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetReferralQueryKey = () => {
+  return [`/api/referral`] as const;
+};
+
+export const getGetReferralQueryOptions = <
+  TData = Awaited<ReturnType<typeof getReferral>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getReferral>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetReferralQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getReferral>>> = ({
+    signal,
+  }) => getReferral({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getReferral>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetReferralQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getReferral>>
+>;
+export type GetReferralQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Invite a friend - the signed-in user's invite code, how many friends joined and paid, and the discount waiting for their next purchase
+ */
+
+export function useGetReferral<
+  TData = Awaited<ReturnType<typeof getReferral>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getReferral>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetReferralQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Apply a friend's invite code (once, before the first payment)
+ */
+export const getRedeemReferralCodeUrl = () => {
+  return `/api/referral/redeem`;
+};
+
+export const redeemReferralCode = async (
+  redeemReferralRequest: RedeemReferralRequest,
+  options?: RequestInit,
+): Promise<RedeemReferralResponse> => {
+  return customFetch<RedeemReferralResponse>(getRedeemReferralCodeUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(redeemReferralRequest),
+  });
+};
+
+export const getRedeemReferralCodeMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof redeemReferralCode>>,
+    TError,
+    { data: BodyType<RedeemReferralRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof redeemReferralCode>>,
+  TError,
+  { data: BodyType<RedeemReferralRequest> },
+  TContext
+> => {
+  const mutationKey = ["redeemReferralCode"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof redeemReferralCode>>,
+    { data: BodyType<RedeemReferralRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return redeemReferralCode(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RedeemReferralCodeMutationResult = NonNullable<
+  Awaited<ReturnType<typeof redeemReferralCode>>
+>;
+export type RedeemReferralCodeMutationBody = BodyType<RedeemReferralRequest>;
+export type RedeemReferralCodeMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Apply a friend's invite code (once, before the first payment)
+ */
+export const useRedeemReferralCode = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof redeemReferralCode>>,
+    TError,
+    { data: BodyType<RedeemReferralRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof redeemReferralCode>>,
+  TError,
+  { data: BodyType<RedeemReferralRequest> },
+  TContext
+> => {
+  return useMutation(getRedeemReferralCodeMutationOptions(options));
+};
+
+/**
+ * @summary Confirm a Checkout payment (verifies Razorpay's signature) and activate the subscription
+ */
+export const getVerifyBillingPaymentUrl = () => {
+  return `/api/billing/verify`;
+};
+
+export const verifyBillingPayment = async (
+  verifyPaymentRequest: VerifyPaymentRequest,
+  options?: RequestInit,
+): Promise<SubscriptionStatus> => {
+  return customFetch<SubscriptionStatus>(getVerifyBillingPaymentUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(verifyPaymentRequest),
+  });
+};
+
+export const getVerifyBillingPaymentMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof verifyBillingPayment>>,
+    TError,
+    { data: BodyType<VerifyPaymentRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof verifyBillingPayment>>,
+  TError,
+  { data: BodyType<VerifyPaymentRequest> },
+  TContext
+> => {
+  const mutationKey = ["verifyBillingPayment"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof verifyBillingPayment>>,
+    { data: BodyType<VerifyPaymentRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return verifyBillingPayment(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type VerifyBillingPaymentMutationResult = NonNullable<
+  Awaited<ReturnType<typeof verifyBillingPayment>>
+>;
+export type VerifyBillingPaymentMutationBody = BodyType<VerifyPaymentRequest>;
+export type VerifyBillingPaymentMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Confirm a Checkout payment (verifies Razorpay's signature) and activate the subscription
+ */
+export const useVerifyBillingPayment = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof verifyBillingPayment>>,
+    TError,
+    { data: BodyType<VerifyPaymentRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof verifyBillingPayment>>,
+  TError,
+  { data: BodyType<VerifyPaymentRequest> },
+  TContext
+> => {
+  return useMutation(getVerifyBillingPaymentMutationOptions(options));
 };
 
 /**
