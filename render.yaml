@@ -1,28 +1,46 @@
-# render.yaml
+# render.yaml - Situation X on Render: ONE web service that serves both the API and the website.
+#
+# Create it with  Render -> New -> Blueprint -> pick this repo, or copy the build/start commands and the
+# environment variables below into an existing Web Service (Settings -> Build & Deploy / Environment).
 services:
   - type: web
-    name: situation-x-backend
-    env: node
+    name: situation-x
+    runtime: node
     plan: free
-    buildCommand: pnpm --filter situation-x-backend run build
-    startCommand: pnpm --filter situation-x-backend run start
-    envVars:
-      - key: PORT
-        value: 4000
-      - key: NODE_ENV
-        value: production
-      # Secrets are not stored in this file. `sync: false` makes Render prompt for a
-      # value when the service is created; JWT_SECRET is generated randomly.
-      # (A committed placeholder such as "your_jwt_secret_here" passes the backend's
-      # length check, so a forgotten edit would let anyone forge login tokens.)
-      - key: JWT_SECRET
-        generateValue: true
-      - key: SUPABASE_URL
-        sync: false
-      - key: SUPABASE_SERVICE_KEY
-        sync: false
-      - key: GROQ_API_KEY # required by backend/src/config/env.ts; was missing here
-        sync: false
-      - key: ALLOWED_ORIGINS # e.g. https://your-site.netlify.app
-        sync: false
+    # pnpm is chosen by the "packageManager" field in package.json. --prod=false is needed because Render sets
+    # NODE_ENV=production and the build tools (vite, esbuild, typescript) are dev dependencies.
+    # VITE_CLERK_PUBLISHABLE_KEY is read here, at build time, and baked into the website.
+    buildCommand: >-
+      corepack enable &&
+      pnpm install --frozen-lockfile --prod=false --filter "@workspace/api-server..." --filter "@workspace/situation-x..." &&
+      PORT=3000 BASE_PATH=/ pnpm --filter @workspace/situation-x run build &&
+      pnpm --filter @workspace/api-server run build
+    startCommand: pnpm --filter @workspace/api-server run start
     healthCheckPath: /api/healthz
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      # --- Sign-in (Clerk dashboard -> API keys). The publishable key is needed twice: once for the website
+      #     (build time) and once for the server.
+      - key: VITE_CLERK_PUBLISHABLE_KEY
+        sync: false
+      - key: CLERK_PUBLISHABLE_KEY
+        sync: false
+      - key: CLERK_SECRET_KEY
+        sync: false
+      # --- Database (Supabase -> Connect -> connection string). Create the tables first with lib/db/supabase-setup.sql.
+      - key: DATABASE_URL
+        sync: false
+      # --- AI
+      - key: GROQ_API_KEY
+        sync: false
+      # --- Payments (Razorpay dashboard). Leave empty until you have them: the site then shows "payments opening soon".
+      - key: RAZORPAY_KEY_ID
+        sync: false
+      - key: RAZORPAY_KEY_SECRET
+        sync: false
+      - key: RAZORPAY_WEBHOOK_SECRET
+        sync: false
+      # --- Optional: your own Clerk user id(s), comma separated, so you are never charged credits.
+      - key: BILLING_FREE_USER_IDS
+        sync: false
