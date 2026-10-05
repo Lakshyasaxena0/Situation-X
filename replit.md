@@ -135,3 +135,13 @@ Razorpay Orders API via `src/lib/razorpay.ts`; routes in `src/routes/billing.ts`
 4. Optional: `BILLING_WELCOME_CREDITS=0` (no free credits), `BILLING_FREE_USER_IDS=<your Clerk id>` (owner never charged),
    `BILLING_GST_PCT` once GST-registered.
 5. The server logs a warning at start if credits are charged but the keys (or the webhook secret) are missing.
+
+### Deploying on Render (one service: API + website)
+- `render.yaml` defines a single Node web service. The build installs with pnpm (pinned by `packageManager` in the root
+  `package.json`), builds the website (`artifacts/situation-x/dist/public`) and the API (`artifacts/api-server/dist`); the API
+  server then also serves the website, so both share one address (no CORS, Clerk cookies just work). `FRONTEND_DIR` overrides
+  where the built website is read from.
+- Existing service created from the dashboard: Settings -> Build Command = the `buildCommand` of `render.yaml`, Start Command =
+  `pnpm --filter @workspace/api-server run start`, Health Check Path = `/api/healthz`, plus the environment variables listed there.
+  The old `cd backend && npm install ...` command belongs to the legacy `backend/` folder and fails in this pnpm workspace.
+- `VITE_CLERK_PUBLISHABLE_KEY` is baked into the website at build time, so after changing it use "Manual Deploy -> Clear build cache & deploy".

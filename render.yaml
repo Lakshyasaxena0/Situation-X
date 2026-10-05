@@ -12,7 +12,7 @@ services:
     # VITE_CLERK_PUBLISHABLE_KEY is read here, at build time, and baked into the website.
     buildCommand: >-
       corepack enable &&
-      pnpm install --frozen-lockfile --prod=false --filter "@workspace/api-server..." --filter "@workspace/situation-x..." &&
+      pnpm install --no-frozen-lockfile --prod=false --filter "@workspace/api-server..." --filter "@workspace/situation-x..." &&
       PORT=3000 BASE_PATH=/ pnpm --filter @workspace/situation-x run build &&
       pnpm --filter @workspace/api-server run build
     startCommand: pnpm --filter @workspace/api-server run start

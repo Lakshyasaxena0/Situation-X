@@ -57,7 +57,9 @@ if (fs.existsSync(frontendIndex)) {
   } }));
   // Page addresses such as /oracle or /pricing belong to the React app. Unknown /api paths stay JSON 404s.
   app.use((req: Request, res: Response, next: NextFunction) => {
-    if ((req.method !== "GET" && req.method !== "HEAD") || req.path.startsWith("/api")) {
+    // A path with a file extension is a file that does not exist (e.g. an old /assets/x.js after a new
+    // deploy): answer 404 instead of the HTML page, which the browser would try to run as a script.
+    if ((req.method !== "GET" && req.method !== "HEAD") || req.path.startsWith("/api") || path.extname(req.path) !== "") {
       next();
       return;
     }
