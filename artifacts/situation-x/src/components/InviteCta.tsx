@@ -1,5 +1,5 @@
 import { Link } from "wouter";
-import { useGetReferral } from "@workspace/api-client-react";
+import { useGetReferral, useGetCredits, getGetCreditsQueryKey } from "@workspace/api-client-react";
 import { Gift, Share2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { shareInvite } from "@/lib/referralLink";
@@ -10,7 +10,9 @@ import { shareInvite } from "@/lib/referralLink";
  */
 export function InviteCta({ className = "" }: { className?: string }) {
   const { data } = useGetReferral();
-  if (!data) return null;
+  const { data: wallet } = useGetCredits({ query: { queryKey: getGetCreditsQueryKey(), staleTime: 15_000 } });
+  // A discount only means something once credits are being charged.
+  if (!data || !wallet?.billingActive) return null;
   return (
     <div className={`flex flex-wrap items-center justify-between gap-3 rounded-lg border border-primary/30 bg-primary/5 px-4 py-3 ${className}`}>
       <div className="flex items-start gap-2.5 text-sm">

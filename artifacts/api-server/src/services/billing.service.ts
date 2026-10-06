@@ -16,7 +16,8 @@
  *   BILLING_PLAN_PRICES_INR     prices for 1,6,12,24 months in rupees   default "150,850,1700,3400"
  *   BILLING_CREDITS_PER_INR     credits given per rupee of plan price   default 1
  *   BILLING_GST_PCT             GST added on top (0 = prices final)     default 0
- *   BILLING_PAYWALL             "off" stops charging credits (everything free)   default on
+ *   BILLING_PAYWALL             "on" / "off" forces charging on / off. Unset: credits are charged only once the
+ *                               Razorpay keys are set (so everything is free until you can take payments)
  *   BILLING_FREE_USER_IDS       comma list of Clerk user ids that never pay (owner/testing)
  *
  * Credits (an analysis costs credits, see credit-cost.service.ts):
@@ -25,6 +26,8 @@
  *   BILLING_SINGLE_RATE_INR          price of one credit bought without a subscription (the "single
  *                                    query" rate, deliberately higher so users prefer a plan)   default 2
  */
+
+import { razorpayConfigured } from "../lib/razorpay.js";
 
 export const PLAN_IDS = ["monthly", "six_months", "yearly", "two_years"] as const;
 export type PlanId = (typeof PLAN_IDS)[number];
@@ -184,10 +187,17 @@ export function allQuotes(): Quote[] {
   return PLAN_IDS.map(quoteFor);
 }
 
-/** Credits are charged unless the owner switches it off explicitly (BILLING_PAYWALL=off). */
+/**
+ * Are credits charged? BILLING_PAYWALL=on / off decides explicitly. Without that setting credits are
+ * charged exactly when payments can be taken (Razorpay keys are set): until then everything is free
+ * (no one can be asked to pay with no way to pay), and the paywall switches itself on the moment
+ * the keys are added.
+ */
 export function paywallEnabled(): boolean {
   const v = process.env.BILLING_PAYWALL?.trim().toLowerCase();
-  return !(v === "off" || v === "false" || v === "0");
+  if (v === "on" || v === "true" || v === "1") return true;
+  if (v === "off" || v === "false" || v === "0") return false;
+  return razorpayConfigured();
 }
 
 export function isFreeUser(userId: string): boolean {

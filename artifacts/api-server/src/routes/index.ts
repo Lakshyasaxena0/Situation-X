@@ -15,7 +15,7 @@ router.use(billingPublicRouter); // public: price list + Razorpay webhook (signa
 router.use(requireUser);
 router.use(billingRouter);
 // A new analysis is the paid feature: it costs credits (charged inside the route, only while
-// unless BILLING_PAYWALL=off). History, feedback and follow-ups stay free so users can always see and
+// once payments are set up, see paywallEnabled()). History, feedback and follow-ups stay free so users can always see and
 // answer their past readings.
 router.use(analysisRouter);
 router.use(feedbackRouter);

@@ -100,8 +100,8 @@ Razorpay Orders API via `src/lib/razorpay.ts`; routes in `src/routes/billing.ts`
   are unique per (reason, order id) in `credit_ledger`.
 - Tables `subscriptions`, `payments` (+ `kind`, `credits`), `credit_wallets`, `credit_ledger`: run
   `pnpm --filter @workspace/db run push` after deploying.
-- Env vars: `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET`; credits are charged by default
-  (`BILLING_PAYWALL=off` makes everything free, nothing debited); `BILLING_FREE_USER_IDS` = Clerk ids that are never charged.
+- Env vars: `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET`; credits are charged once the Razorpay keys are set
+  (no keys = everything free, nothing debited; `BILLING_PAYWALL=on|off` forces it either way); `BILLING_FREE_USER_IDS` = Clerk ids that are never charged.
   Pricing: `BILLING_PLAN_PRICES_INR` (`150,850,1700,3400` for 1/6/12/24 months), `BILLING_GST_PCT` (0),
   `BILLING_CREDITS_PER_INR` (1 rupee = 1 credit), `BILLING_WELCOME_CREDITS` (20, one time per new user),
   `BILLING_TOPUP_RATE_INR` (1 per credit), `BILLING_SINGLE_RATE_INR` (2 per credit). Optional stronger models
