@@ -1,0 +1,19 @@
+{
+  "name": "Situation X",
+  "short_name": "Situation X",
+  "description": "Clear decisions: AI reasoning together with Vedic (Prashna) astrology.",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#080c16",
+  "theme_color": "#080c16",
+  "lang": "en-IN",
+  "categories": ["lifestyle", "productivity"],
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

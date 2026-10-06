@@ -145,3 +145,13 @@ Razorpay Orders API via `src/lib/razorpay.ts`; routes in `src/routes/billing.ts`
   `pnpm --filter @workspace/api-server run start`, Health Check Path = `/api/healthz`, plus the environment variables listed there.
   The old `cd backend && npm install ...` command belongs to the legacy `backend/` folder and fails in this pnpm workspace.
 - `VITE_CLERK_PUBLISHABLE_KEY` is baked into the website at build time, so after changing it use "Manual Deploy -> Clear build cache & deploy".
+
+### Installable app (PWA)
+- The website can be installed like an app: Android / Windows (Chrome, Edge) show an "Install" button (`InstallPrompt`), iPhone Safari
+  shows "Share -> Add to Home Screen". Files in `artifacts/situation-x/public/`: `manifest.webmanifest`, `sw.js`, `offline.html`,
+  `icon-192.png`, `icon-512.png`, `icon-maskable-512.png`, `apple-touch-icon.png`; registered in `src/main.tsx` (production build only).
+- Everything still runs on the server: the service worker only keeps the built `/assets/` files and shows an offline page. It never
+  touches `/api/`, sign-in, AI or payment traffic.
+- Caching: only `/assets/*` (hashed names) is cached for a year; `index.html`, `sw.js`, the manifest and icons are always revalidated
+  (`artifacts/api-server/src/app.ts`), so an update reaches users on their next visit.
+- To change the app icon, replace the PNGs (192, 512, maskable 512 with the artwork inside the central 80%, apple-touch 180).

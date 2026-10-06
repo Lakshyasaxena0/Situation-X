@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#080c16" />
+    <title>Situation X - offline</title>
+    <style>
+      html, body { height: 100%; margin: 0; }
+      body { display: flex; align-items: center; justify-content: center; background: #080c16; color: #e2e8f0;
+             font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif; text-align: center; padding: 24px; box-sizing: border-box; }
+      main { max-width: 360px; }
+      img { width: 72px; height: 72px; border-radius: 16px; }
+      h1 { font-size: 20px; margin: 20px 0 8px; }
+      p { font-size: 14px; line-height: 1.55; color: #94a3b8; margin: 0 0 24px; }
+      button { background: #f97316; color: #080c16; border: 0; border-radius: 8px; padding: 12px 22px; font-size: 14px; font-weight: 600; cursor: pointer; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <img src="icon-192.png" alt="" />
+      <h1>You are offline</h1>
+      <p>Situation X needs an internet connection for the AI, the astrology charts and payments. Please reconnect and try again.</p>
+      <button onclick="location.reload()">Try again</button>
+    </main>
+    <script>
+      // Come back by itself once the connection returns.
+      window.addEventListener("online", function () { location.reload(); });
+    </script>
+  </body>
+</html>

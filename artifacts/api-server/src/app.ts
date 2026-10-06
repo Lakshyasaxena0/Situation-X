@@ -51,9 +51,11 @@ const frontendDir = process.env.FRONTEND_DIR
   : path.resolve(import.meta.dirname, "../../situation-x/dist/public");
 const frontendIndex = path.join(frontendDir, "index.html");
 if (fs.existsSync(frontendIndex)) {
-  // Built files have hashed names, so browsers may keep them; index.html must always be fetched fresh.
-  app.use(express.static(frontendDir, { index: false, maxAge: "1y", immutable: true, setHeaders: (res, file) => {
-    if (file === frontendIndex) res.setHeader("Cache-Control", "no-cache");
+  // Only files under /assets/ have content-hashed names and may be kept for a year. Everything else (the page,
+  // sw.js, the manifest, icons, the offline page) must be re-checked, or an update would never reach users.
+  const assetsDir = path.join(frontendDir, "assets") + path.sep;
+  app.use(express.static(frontendDir, { index: false, setHeaders: (res, file) => {
+    res.setHeader("Cache-Control", file.startsWith(assetsDir) ? "public, max-age=31536000, immutable" : "no-cache");
   } }));
   // Page addresses such as /oracle or /pricing belong to the React app. Unknown /api paths stay JSON 404s.
   app.use((req: Request, res: Response, next: NextFunction) => {
